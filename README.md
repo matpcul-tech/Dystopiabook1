@@ -18,8 +18,7 @@ Single file, no build step. Serve `index.html` from anywhere
 Everything an author should tweak lives in the `CONFIG` block at the top
 of the `<script type="module">` in `index.html`:
 
-- `BOOK1_URL` — currently an Amazon search placeholder. **Replace with the
-  real Kindle store URL for Book 1.**
+- `BOOK1_URL` — the Kindle store URL for Book 1.
 - `NAMES` — the radio team callsigns (`REESE`, `KIRA`, `DOC` are
   placeholders). Rename to match the team in the books.
 - `RADIO` — all 14 chatter lines, keyed by trigger.
