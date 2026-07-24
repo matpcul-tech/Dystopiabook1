@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>LATM: Hive Infiltration</title>
+<meta name="description" content="A free playable episode set in the world of Life After The Machines. Awaken, fight through the hive, reach the core.">
+<style>
+  :root{
+    --grn:#39ff88; --grn-dim:#1a7a44; --red:#ff3344; --bg:#020604;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+    font-family:"Courier New",ui-monospace,monospace;color:var(--grn);
+    touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none;}
+  canvas{display:block;}
+  #hud,#overlays{position:fixed;inset:0;pointer-events:none;}
+
+  /* crosshair */
+  #crosshair{position:absolute;left:50%;top:50%;width:14px;height:14px;
+    transform:translate(-50%,-50%);opacity:.85;display:none;}
+  #crosshair:before,#crosshair:after{content:"";position:absolute;background:var(--grn);}
+  #crosshair:before{left:6px;top:0;width:2px;height:14px;}
+  #crosshair:after{left:0;top:6px;width:14px;height:2px;}
+
+  /* health */
+  #healthWrap{position:absolute;left:16px;top:14px;width:180px;display:none;}
+  #healthLabel{font-size:10px;letter-spacing:2px;opacity:.8;margin-bottom:3px;}
+  #healthBar{height:10px;border:1px solid var(--grn-dim);background:rgba(0,20,8,.6);}
+  #healthFill{height:100%;width:100%;background:var(--grn);box-shadow:0 0 8px var(--grn);transition:width .15s;}
+
+  /* objective */
+  #objective{position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    font-size:11px;letter-spacing:3px;opacity:.75;text-align:center;display:none;white-space:nowrap;}
+
+  /* radio feed */
+  #radio{position:absolute;left:16px;bottom:110px;max-width:78%;font-size:14px;
+    line-height:1.5;text-shadow:0 0 6px rgba(57,255,136,.7);}
+  .radioLine{opacity:0;transition:opacity .3s;margin-top:6px;}
+  .radioLine .who{color:#baffd9;font-weight:bold;letter-spacing:1px;}
+  .radioLine.show{opacity:1;}
+
+  /* center prompt */
+  #prompt{position:absolute;left:50%;bottom:26%;transform:translateX(-50%);
+    font-size:14px;letter-spacing:2px;padding:8px 14px;border:1px solid var(--grn-dim);
+    background:rgba(0,15,6,.7);display:none;text-align:center;animation:pulse 1.2s infinite;}
+  @keyframes pulse{0%,100%{opacity:.95}50%{opacity:.55}}
+
+  /* plant progress */
+  #plantWrap{position:absolute;left:50%;bottom:34%;transform:translateX(-50%);
+    width:220px;display:none;}
+  #plantLabel{font-size:11px;letter-spacing:2px;text-align:center;margin-bottom:4px;}
+  #plantBar{height:8px;border:1px solid var(--grn-dim);background:rgba(0,20,8,.6);}
+  #plantFill{height:100%;width:0%;background:var(--grn);box-shadow:0 0 8px var(--grn);}
+
+  /* vignettes / fades */
+  #dmgVignette{position:absolute;inset:0;opacity:0;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(255,20,40,.55) 100%);
+    transition:opacity .2s;}
+  #fade{position:absolute;inset:0;background:#000;opacity:1;transition:opacity 1s;}
+  #redFade{position:absolute;inset:0;background:#2a0006;opacity:0;transition:opacity .8s;}
+
+  /* touch controls */
+  #stickZone,#lookZone{position:absolute;top:0;bottom:0;pointer-events:auto;display:none;}
+  #stickZone{left:0;width:45%;}
+  #lookZone{right:0;width:55%;}
+  #stickBase{position:absolute;width:110px;height:110px;border:1px solid rgba(57,255,136,.4);
+    border-radius:50%;display:none;transform:translate(-50%,-50%);}
+  #stickNub{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;
+    background:rgba(57,255,136,.25);border:1px solid var(--grn);transform:translate(-50%,-50%);}
+  #fireBtn{position:absolute;right:24px;bottom:34px;width:86px;height:86px;border-radius:50%;
+    border:2px solid var(--grn);background:rgba(0,40,16,.4);color:var(--grn);
+    font-family:inherit;font-size:11px;letter-spacing:2px;display:none;pointer-events:auto;
+    text-shadow:0 0 6px var(--grn);}
+  #fireBtn:active{background:rgba(57,255,136,.3);}
+  #plantBtn{position:absolute;right:28px;bottom:136px;width:78px;height:78px;border-radius:50%;
+    border:2px solid #ffd23f;background:rgba(60,45,0,.4);color:#ffd23f;
+    font-family:inherit;font-size:10px;letter-spacing:1px;display:none;pointer-events:auto;}
+
+  /* screens */
+  .screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;pointer-events:auto;padding:24px;}
+  .screen h1{font-size:clamp(20px,5vw,38px);letter-spacing:6px;text-shadow:0 0 18px var(--grn);}
+  .screen h2{font-size:clamp(12px,2.6vw,16px);letter-spacing:4px;opacity:.7;margin-top:10px;}
+  .btn{margin-top:34px;padding:14px 34px;border:1px solid var(--grn);background:rgba(0,30,12,.5);
+    color:var(--grn);font-family:inherit;font-size:14px;letter-spacing:3px;cursor:pointer;
+    text-shadow:0 0 8px var(--grn);text-decoration:none;display:inline-block;}
+  .btn:hover{background:rgba(57,255,136,.15);}
+  .btn.amber{border-color:#ffd23f;color:#ffd23f;text-shadow:0 0 8px #ffd23f;}
+  #startHint{margin-top:24px;font-size:11px;letter-spacing:2px;opacity:.5;line-height:1.8;}
+
+  /* intro */
+  #intro{background:#000;display:none;}
+  #introText{font-size:clamp(15px,3.4vw,22px);letter-spacing:2px;line-height:2;
+    max-width:640px;min-height:4em;opacity:0;transition:opacity 1.2s;color:#cfeede;
+    text-shadow:0 0 10px rgba(57,255,136,.5);}
+  #skipBtn{position:absolute;right:18px;bottom:18px;padding:8px 16px;border:1px solid var(--grn-dim);
+    background:transparent;color:var(--grn);font-family:inherit;font-size:11px;letter-spacing:2px;
+    cursor:pointer;opacity:0;transition:opacity .6s;}
+
+  /* end card */
+  #endCard{display:none;background:radial-gradient(ellipse at center,#03140a 0%,#000 75%);}
+  #endTitle{font-size:clamp(16px,4vw,26px);letter-spacing:5px;margin-bottom:26px;
+    text-shadow:0 0 14px var(--grn);}
+  #cover{width:min(200px,44vw);aspect-ratio:2/3;border:1px solid var(--grn);
+    background:linear-gradient(160deg,#04170c 0%,#010804 60%,#04170c 100%);
+    box-shadow:0 0 30px rgba(57,255,136,.35), inset 0 0 40px rgba(57,255,136,.12);
+    display:flex;flex-direction:column;justify-content:space-between;padding:16px 12px;margin:0 auto;}
+  #cover .cTop{font-size:9px;letter-spacing:3px;opacity:.7;}
+  #cover .cTitle{font-size:clamp(13px,3vw,17px);letter-spacing:2px;line-height:1.6;
+    text-shadow:0 0 10px var(--grn);}
+  #cover .cGlyph{font-size:34px;opacity:.9;text-shadow:0 0 16px var(--grn);}
+  #cover .cBottom{font-size:9px;letter-spacing:3px;opacity:.7;}
+  #endSub{margin-top:22px;font-size:12px;letter-spacing:2px;opacity:.75;max-width:480px;line-height:1.8;}
+  #endBtns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="healthWrap">
+    <div id="healthLabel">VITALS</div>
+    <div id="healthBar"><div id="healthFill"></div></div>
+  </div>
+  <div id="objective"></div>
+  <div id="radio"></div>
+  <div id="prompt"></div>
+  <div id="plantWrap">
+    <div id="plantLabel">ARMING CHARGE</div>
+    <div id="plantBar"><div id="plantFill"></div></div>
+  </div>
+  <div id="dmgVignette"></div>
+</div>
+
+<div id="stickZone"></div>
+<div id="lookZone"></div>
+<div id="stickBase"><div id="stickNub"></div></div>
+<button id="fireBtn">FIRE</button>
+<button id="plantBtn">PLANT</button>
+
+<div id="overlays">
+  <div id="redFade"></div>
+  <div id="fade"></div>
+
+  <div class="screen" id="startScreen">
+    <h1>HIVE INFILTRATION</h1>
+    <h2>A LIFE AFTER THE MACHINES EPISODE</h2>
+    <button class="btn" id="startBtn">TAP TO BEGIN</button>
+    <div id="startHint"></div>
+  </div>
+
+  <div class="screen" id="intro">
+    <div id="introText"></div>
+    <button id="skipBtn">SKIP &#9656;</button>
+  </div>
+
+  <div class="screen" id="endCard">
+    <div id="endTitle">MARCUS'S STORY CONTINUES.</div>
+    <div id="cover">
+      <div class="cTop">A NOVEL</div>
+      <div class="cTitle">LIFE<br>AFTER THE<br>MACHINES</div>
+      <div class="cGlyph">&#10683;</div>
+      <div class="cBottom">BOOK ONE</div>
+    </div>
+    <div id="endSub">The hive was only the beginning. Find out how Marcus's war really started &mdash; and where it goes from here.</div>
+    <div id="endBtns" style="margin-top:26px;">
+      <a class="btn amber" id="book1Btn" target="_blank" rel="noopener">READ BOOK 1</a>
+      <button class="btn" id="replayBtn">REPLAY</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Known caching fix: unregister any service workers left by previous deploys.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then(rs => rs.forEach(r => r.unregister()))
+    .catch(()=>{});
+}
+</script>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================================================
+   CONFIG — edit these without touching game code.
+   ============================================================ */
+const CONFIG = {
+  // TODO(author): replace with the real Kindle store URL for Book 1.
+  BOOK1_URL: 'https://www.amazon.com/s?k=life+after+the+machines+book+1',
+  // TODO(author): rename to match the team in the books.
+  NAMES: { lead:'REESE', ops:'KIRA', medic:'DOC' },
+};
+
+const N = CONFIG.NAMES;
+// Radio chatter: the story channel. Keyed triggers fired by game events / zones.
+const RADIO = {
+  pickup:      [{who:N.ops,  text:"There you are. Thought we lost you, Marcus."},
+                {who:N.lead, text:"The hive woke up the second you did. Crawlers inbound — light 'em up."}],
+  seg1_mid:    [{who:N.ops,  text:"Pulse rifle's synced to your rig. Infinite cell. Make it count."}],
+  seg1_clear:  [{who:N.lead, text:"Segment clear. Door's cycling — move up."}],
+  seg2_enter:  [{who:N.medic,text:"Vitals holding. Take a hit, find cover — you'll knit."}],
+  seg2_mid:    [{who:N.ops,  text:"Sentries ahead. Watch the red flare — that's the wind-up."}],
+  seg2_clear:  [{who:N.lead, text:"Clean. You're better at this than you have any right to be."}],
+  seg3_enter:  [{who:N.ops,  text:"Signal's thick in there. You're right on top of the core."}],
+  seg3_mid:    [{who:N.medic,text:"Heart rate's spiking. Breathe, Marcus."}],
+  seg3_clear:  [{who:N.lead, text:"Last door. Whatever's behind it already knows you're coming."}],
+  core_enter:  [{who:N.ops,  text:"That's it — the hive core. Plant the charge, I'll cook the uplink."}],
+  alarm:       [{who:N.lead, text:"Alarm state! Hold them off until it arms!"}],
+  planted:     [{who:N.ops,  text:"Charge armed! Extraction point, NOW!"}],
+  extract:     [{who:N.lead, text:"We've got you, Marcus. We've got you."}],
+};
+
+const INTRO_LINES = [
+  "...",
+  "Cold. Metal. A floor.",
+  "—arcus. Marcus. MARCUS.",
+  "\"His vitals just came back online. He's alive.\"",
+  "\"Get up, soldier. You're inside the hive.\"",
+];
+
+/* ============================================================
+   DOM refs & tiny helpers
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const el = {
+  fade:$('fade'), redFade:$('redFade'), start:$('startScreen'), startBtn:$('startBtn'),
+  startHint:$('startHint'), intro:$('intro'), introText:$('introText'), skipBtn:$('skipBtn'),
+  end:$('endCard'), book1:$('book1Btn'), replay:$('replayBtn'),
+  crosshair:$('crosshair'), healthWrap:$('healthWrap'), healthFill:$('healthFill'),
+  objective:$('objective'), radio:$('radio'), prompt:$('prompt'),
+  plantWrap:$('plantWrap'), plantFill:$('plantFill'),
+  dmg:$('dmgVignette'), stickZone:$('stickZone'), lookZone:$('lookZone'),
+  stickBase:$('stickBase'), stickNub:$('stickNub'), fireBtn:$('fireBtn'), plantBtn:$('plantBtn'),
+};
+el.book1.href = CONFIG.BOOK1_URL;
+
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+el.startHint.innerHTML = IS_TOUCH
+  ? 'LEFT SIDE: MOVE &nbsp;&bull;&nbsp; RIGHT SIDE: LOOK &nbsp;&bull;&nbsp; FIRE BUTTON: SHOOT'
+  : 'WASD: MOVE &nbsp;&bull;&nbsp; MOUSE: LOOK &nbsp;&bull;&nbsp; CLICK: FIRE &nbsp;&bull;&nbsp; E: INTERACT';
+
+/* ============================================================
+   Audio — all synthesized, zero assets
+   ============================================================ */
+const AudioSys = (() => {
+  let ctx = null, master = null, humOsc = null, humGain = null, alarmTimer = null, heartTimer = null;
+  function init(){
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value = 0.55; master.connect(ctx.destination);
+  }
+  function now(){ return ctx.currentTime; }
+  function env(g, t0, a, peak, d){
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + d);
+  }
+  function tone(type, f0, f1, dur, peak, t0){
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t0);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(f1,1), t0 + dur);
+    env(g, t0, 0.005, peak, dur);
+    o.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+  function noise(dur, peak, t0, freq, q){
+    const len = Math.ceil(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const flt = ctx.createBiquadFilter(); flt.type='bandpass'; flt.frequency.value=freq; flt.Q.value=q;
+    const g = ctx.createGain(); env(g, t0, 0.003, peak, dur);
+    src.connect(flt); flt.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + dur + 0.05);
+  }
+  return {
+    init,
+    resume(){ if (ctx && ctx.state === 'suspended') ctx.resume(); },
+    heartbeatStart(){
+      init(); if (heartTimer) return;
+      const thump = () => {
+        const t = now();
+        tone('sine', 62, 38, 0.16, 0.9, t);
+        tone('sine', 55, 34, 0.13, 0.6, t + 0.28);
+      };
+      thump(); heartTimer = setInterval(thump, 1050);
+    },
+    heartbeatStop(){ if (heartTimer){ clearInterval(heartTimer); heartTimer = null; } },
+    humStart(){
+      init(); if (humOsc) return;
+      humOsc = ctx.createOscillator(); humOsc.type='sawtooth'; humOsc.frequency.value=42;
+      const flt = ctx.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=140;
+      humGain = ctx.createGain(); humGain.gain.value = 0.05;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.13;
+      const lfoG = ctx.createGain(); lfoG.gain.value = 20;
+      lfo.connect(lfoG); lfoG.connect(flt.frequency);
+      humOsc.connect(flt); flt.connect(humGain); humGain.connect(master);
+      humOsc.start(); lfo.start();
+    },
+    shot(){ if(!ctx)return; const t=now();
+      tone('square', 880, 140, 0.09, 0.35, t); noise(0.07, 0.25, t, 2500, 0.8); },
+    hitConfirm(){ if(!ctx)return; tone('square', 1600, 1600, 0.04, 0.18, now()); },
+    droneDie(){ if(!ctx)return; const t=now();
+      tone('sawtooth', 300, 40, 0.35, 0.4, t); noise(0.3, 0.3, t, 700, 0.6); },
+    alert(){ if(!ctx)return; const t=now();
+      tone('sawtooth', 220, 660, 0.22, 0.3, t); },
+    sentryCharge(){ if(!ctx)return; const t=now();
+      tone('sine', 300, 1200, 0.6, 0.22, t); },
+    sentryFire(){ if(!ctx)return; const t=now();
+      tone('sawtooth', 700, 120, 0.18, 0.35, t); noise(0.12, 0.2, t, 1800, 1); },
+    hurt(){ if(!ctx)return; const t=now();
+      noise(0.18, 0.5, t, 300, 0.5); tone('sine', 120, 60, 0.2, 0.5, t); },
+    radioBlip(){ if(!ctx)return; const t=now();
+      tone('square', 1046, 1046, 0.05, 0.12, t); tone('square', 1568, 1568, 0.05, 0.12, t+0.08); },
+    checkpoint(){ if(!ctx)return; const t=now();
+      tone('sine', 523, 523, 0.1, 0.25, t); tone('sine', 784, 784, 0.16, 0.25, t+0.11); },
+    doorOpen(){ if(!ctx)return; const t=now();
+      tone('sawtooth', 90, 55, 0.9, 0.25, t); noise(0.8, 0.12, t, 400, 0.4); },
+    plantTick(){ if(!ctx)return; tone('square', 988, 988, 0.03, 0.12, now()); },
+    planted(){ if(!ctx)return; const t=now();
+      [523,659,784,1046].forEach((f,i)=>tone('sine',f,f,0.14,0.25,t+i*0.09)); },
+    alarmStart(){
+      init(); if (alarmTimer) return;
+      let hi = false;
+      alarmTimer = setInterval(()=>{ tone('square', hi?540:404, hi?540:404, 0.28, 0.1, now()); hi=!hi; }, 460);
+    },
+    alarmStop(){ if (alarmTimer){ clearInterval(alarmTimer); alarmTimer = null; } },
+    death(){ if(!ctx)return; const t=now();
+      tone('sawtooth', 200, 30, 1.2, 0.4, t); noise(1.0, 0.3, t, 200, 0.4); },
+    extract(){ if(!ctx)return; const t=now();
+      tone('sine', 220, 880, 1.6, 0.2, t); tone('sine', 330, 1320, 1.6, 0.12, t); },
+  };
+})();
+
+/* ============================================================
+   Three.js scene
+   ============================================================ */
+const renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x010603);
+scene.fog = new THREE.FogExp2(0x010603, 0.048);
+
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 120);
+// Yaw/pitch rig: yawObj carries position + yaw, pitchObj carries pitch + camera.
+const yawObj = new THREE.Object3D();
+const pitchObj = new THREE.Object3D();
+yawObj.add(pitchObj); pitchObj.add(camera); scene.add(yawObj);
+
+scene.add(new THREE.AmbientLight(0x1a4633, 2.0));
+const dirLight = new THREE.DirectionalLight(0x9dffce, 1.3);
+dirLight.position.set(2, 8, 3);
+scene.add(dirLight);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================================================
+   Level: 5 rooms (start, 3 segments, core) along -Z
+   ============================================================ */
+const WALL_H = 4, DOOR_HALF = 1.6;
+const ROOMS = [
+  { x1:-3,  x2:3,  z1:-10,  z2:2    }, // 0 start
+  { x1:-4,  x2:4,  z1:-42,  z2:-10  }, // 1 seg1
+  { x1:-5,  x2:5,  z1:-78,  z2:-42  }, // 2 seg2
+  { x1:-4,  x2:4,  z1:-116, z2:-78  }, // 3 seg3
+  { x1:-10, x2:10, z1:-140, z2:-116 }, // 4 core
+];
+const PILLARS = [ // [x, z, half-size] — cover in seg2/seg3/core
+  [-2.6,-54,.45],[2.6,-58,.45],[-2.6,-66,.45],[2.6,-70,.45],
+  [-2.2,-88,.45],[2.2,-92,.45],[-2.2,-102,.45],[2.2,-106,.45],
+  [-6,-124,.55],[6,-124,.55],[-6,-134,.55],[6,-134,.55],
+];
+
+const matWall  = new THREE.MeshToonMaterial({ color:0x0b1712 });
+const matFloor = new THREE.MeshToonMaterial({ color:0x081009 });
+const matStrip = new THREE.MeshBasicMaterial({ color:0x39ff88 });
+const matEdge  = new THREE.LineBasicMaterial({ color:0x1fca69, transparent:true, opacity:.5 });
+const matDoor  = new THREE.MeshToonMaterial({ color:0x123424, emissive:0x0c3520 });
+
+const colliders = [];   // {x1,x2,z1,z2, door?}  AABBs for movement + LOS
+const wallMeshes = [];  // meshes used for raycast occlusion / bullet stops
+const doors = [];       // {mesh, collider, open, anim}
+
+function addBox(x1,x2,z1,z2,h,mat,solid=true,edges=true){
+  const w=x2-x1, d=z2-z1;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set((x1+x2)/2, h/2, (z1+z2)/2);
+  scene.add(m); wallMeshes.push(m);
+  if (edges){
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), matEdge);
+    e.position.copy(m.position); scene.add(e);
+  }
+  if (solid) colliders.push({x1,x2,z1,z2});
+  return m;
+}
+
+// floor + ceiling (single big slabs)
+{
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(26, .2, 148), matFloor);
+  fl.position.set(0,-.1,-69); scene.add(fl); wallMeshes.push(fl);
+  const ce = new THREE.Mesh(new THREE.BoxGeometry(26, .2, 148), matWall);
+  ce.position.set(0, WALL_H+.1, -69); scene.add(ce); wallMeshes.push(ce);
+}
+
+// side walls per room + boundary walls with door gaps
+ROOMS.forEach((r,i)=>{
+  addBox(r.x1-.5, r.x1, r.z1, r.z2, WALL_H, matWall);
+  addBox(r.x2, r.x2+.5, r.z1, r.z2, WALL_H, matWall);
+  if (i===0) addBox(r.x1-.5, r.x2+.5, r.z2, r.z2+.5, WALL_H, matWall);        // back wall
+  if (i===ROOMS.length-1) addBox(r.x1-.5, r.x2+.5, r.z1-.5, r.z1, WALL_H, matWall); // end wall
+  if (i < ROOMS.length-1){
+    const nx = ROOMS[i+1];
+    const lo = Math.min(r.x1,nx.x1)-.5, hi = Math.max(r.x2,nx.x2)+.5, b = r.z1;
+    addBox(lo, -DOOR_HALF, b-.3, b+.3, WALL_H, matWall);
+    addBox(DOOR_HALF, hi, b-.3, b+.3, WALL_H, matWall);
+    // sliding door panel
+    const dm = new THREE.Mesh(new THREE.BoxGeometry(DOOR_HALF*2, WALL_H, .35), matDoor.clone());
+    dm.position.set(0, WALL_H/2, b);
+    scene.add(dm); wallMeshes.push(dm);
+    const de = new THREE.LineSegments(new THREE.EdgesGeometry(dm.geometry), matEdge);
+    dm.add(de);
+    const dc = {x1:-DOOR_HALF, x2:DOOR_HALF, z1:b-.2, z2:b+.2, door:true, active:true};
+    colliders.push(dc);
+    doors.push({ mesh:dm, collider:dc, open:false, anim:0, boundaryZ:b, index:i });
+  }
+});
+
+// pillars
+PILLARS.forEach(([x,z,s])=> addBox(x-s, x+s, z-s, z+s, WALL_H, matWall));
+
+// emissive light strips along walls (green; pulse red in alarm state)
+const strips = [];
+ROOMS.forEach(r=>{
+  for (let z = r.z2-3; z > r.z1+1; z -= 6){
+    [r.x1+.06, r.x2-.06].forEach(x=>{
+      const s = new THREE.Mesh(new THREE.BoxGeometry(.1, .12, 2.2), matStrip);
+      s.position.set(x, 2.6, z); scene.add(s); strips.push(s);
+    });
+  }
+});
+
+// hive core object
+const coreGroup = new THREE.Group();
+const coreMat = new THREE.MeshToonMaterial({ color:0x123, emissive:0x39ff88, emissiveIntensity:.9 });
+const coreMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), coreMat);
+coreMesh.position.y = 2;
+const coreWire = new THREE.LineSegments(new THREE.EdgesGeometry(coreMesh.geometry),
+  new THREE.LineBasicMaterial({ color:0xbaffd9 }));
+coreWire.position.y = 2;
+coreGroup.add(coreMesh, coreWire);
+coreGroup.position.set(0, 0, -134);
+scene.add(coreGroup);
+const CORE_POS = new THREE.Vector3(0, 1.6, -134);
+
+// pickup rifle on floor in start room
+const rifleFloor = new THREE.Group();
+{
+  const body = new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.9),
+    new THREE.MeshToonMaterial({ color:0x1a2a20, emissive:0x113322 }));
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.5), matStrip);
+  glow.position.y = .1;
+  rifleFloor.add(body, glow);
+  rifleFloor.position.set(0, .25, -4);
+  scene.add(rifleFloor);
+}
+
+// view-model rifle (attached to camera after pickup)
+const viewRifle = new THREE.Group();
+{
+  const body = new THREE.Mesh(new THREE.BoxGeometry(.09,.12,.55),
+    new THREE.MeshToonMaterial({ color:0x16241c, emissive:0x0a1a10 }));
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.35),
+    new THREE.MeshToonMaterial({ color:0x0d1712 }));
+  barrel.position.set(0,.03,-.4);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(.02,.02,.4), matStrip);
+  glow.position.set(0,.075,-.1);
+  viewRifle.add(body, barrel, glow);
+  viewRifle.position.set(.24,-.22,-.5);
+  viewRifle.visible = false;
+  camera.add(viewRifle);
+}
+
+// tracer line pool
+const tracerMat = new THREE.LineBasicMaterial({ color:0xbaffd9, transparent:true, opacity:1 });
+const tracers = [];
+function spawnTracer(from, to){
+  const g = new THREE.BufferGeometry().setFromPoints([from, to]);
+  const line = new THREE.Line(g, tracerMat.clone());
+  scene.add(line);
+  tracers.push({ line, life:.07 });
+}
+
+/* ============================================================
+   Drones
+   ============================================================ */
+const crawlerGeo = new THREE.IcosahedronGeometry(.45, 0);
+const sentryGeo  = new THREE.OctahedronGeometry(.55, 0);
+const droneMatIdle  = new THREE.MeshToonMaterial({ color:0x0e1c14, emissive:0x1fca69, emissiveIntensity:.8 });
+const droneMatAlert = new THREE.MeshToonMaterial({ color:0x1c0e0e, emissive:0xff3344, emissiveIntensity:1 });
+const droneEdgeIdle  = new THREE.LineBasicMaterial({ color:0x39ff88 });
+const droneEdgeAlert = new THREE.LineBasicMaterial({ color:0xff5566 });
+const crawlerEdges = new THREE.EdgesGeometry(crawlerGeo);
+const sentryEdges  = new THREE.EdgesGeometry(sentryGeo);
+
+const drones = [];
+let droneSeq = 0;
+
+function makeDrone(kind, x, z, segment){
+  const isCrawler = kind === 'crawler';
+  const mesh = new THREE.Mesh(isCrawler ? crawlerGeo : sentryGeo, droneMatIdle);
+  const edge = new THREE.LineSegments(isCrawler ? crawlerEdges : sentryEdges, droneEdgeIdle);
+  mesh.add(edge);
+  const d = {
+    id: droneSeq++, kind, segment, mesh, edge,
+    home: new THREE.Vector3(x, isCrawler ? .5 : 1.7, z),
+    hp: isCrawler ? 30 : 60, maxHp: isCrawler ? 30 : 60,
+    state: 'idle',            // idle > alert > attack
+    stateT: 0, losT: Math.random()*.15,
+    meleeCd: 0, chargeT: 0, patrolDir: 1,
+    alive: true, spawned: false, deathT: 0,
+  };
+  mesh.position.copy(d.home);
+  drones.push(d);
+  return d;
+}
+
+const INITIAL_DRONES = [
+  // segment 1
+  ['crawler',   0, -18, 1], ['crawler', -2, -26, 1], ['crawler',  2, -34, 1],
+  // segment 2
+  ['crawler',  -3, -50, 2], ['crawler',  3, -56, 2], ['crawler',  0, -72, 2],
+  ['sentry', -3.5, -62, 2], ['sentry', 3.5, -74, 2],
+  // segment 3
+  ['crawler',  -2, -84, 3], ['crawler',  2, -90, 3], ['crawler', 0, -97, 3], ['crawler', -2, -110, 3],
+  ['sentry',  2.5, -100, 3], ['sentry', -2.5, -107, 3], ['sentry', 0, -113, 3],
+  // core initial guards
+  ['sentry',  -6, -128, 4], ['sentry', 6, -128, 4],
+];
+
+function spawnSegment(seg){
+  // (re)create the initial drones of a segment; used at load + on respawn
+  for (let i = drones.length-1; i >= 0; i--){
+    if (drones[i].segment === seg){
+      scene.remove(drones[i].mesh);
+      drones.splice(i,1);
+    }
+  }
+  INITIAL_DRONES.filter(d=>d[3]===seg).forEach(([k,x,z,s])=>{
+    const d = makeDrone(k,x,z,s);
+    d.spawned = true; scene.add(d.mesh);
+  });
+}
+[1,2,3,4].forEach(spawnSegment);
+
+function segmentCleared(seg){
+  return !drones.some(d => d.segment === seg && d.alive);
+}
+function activeDroneCount(){
+  return drones.filter(d => d.alive).length;
+}
+
+// core-wave spawn points (room corners)
+const WAVE_SPAWNS = [[-8,-118],[8,-118],[-8,-138],[8,-138]];
+const MAX_ACTIVE = 8, WAVE_TOTAL = 12;
+
+/* ============================================================
+   Sentry projectiles
+   ============================================================ */
+const projGeo = new THREE.SphereGeometry(.14, 6, 6);
+const projMat = new THREE.MeshBasicMaterial({ color:0xff5566 });
+const projectiles = [];
+function fireProjectile(from, target){
+  const m = new THREE.Mesh(projGeo, projMat);
+  m.position.copy(from);
+  const vel = target.clone().sub(from).normalize().multiplyScalar(13);
+  scene.add(m);
+  projectiles.push({ mesh:m, vel, life:4 });
+  AudioSys.sentryFire();
+}
+
+/* ============================================================
+   Game state
+   ============================================================ */
+const G = {
+  mode: 'boot',            // boot > title > intro > play > dead > extracting > end
+  hp: 100, lastDamageT: 0,
+  hasRifle: false, fireCd: 0,
+  yaw: 0, pitch: 0,
+  checkpoint: { pos: new THREE.Vector3(0,0,0), yaw: 0, segment: 0 },
+  currentSegment: 0,
+  radioQueue: [], radioT: 0, radioFired: new Set(),
+  plantProgress: 0, planting: false, planted: false,
+  alarm: false, waveSpawned: 0, waveT: 0,
+  time: 0, shakeT: 0,
+};
+const PLAYER_R = 0.4, PLAYER_EYE = 1.7;
+const MOVE_SPEED = 5.2;
+
+yawObj.position.set(0, PLAYER_EYE, 0);
+
+/* ============================================================
+   Input
+   ============================================================ */
+const keys = {};
+let mouseFiring = false, pointerLocked = false;
+
+addEventListener('keydown', e => { keys[e.code] = true; });
+addEventListener('keyup',   e => { keys[e.code] = false; });
+
+renderer.domElement.addEventListener('click', () => {
+  if (G.mode === 'play' && !IS_TOUCH && !pointerLocked){
+    renderer.domElement.requestPointerLock();
+  }
+});
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === renderer.domElement;
+});
+addEventListener('mousemove', e => {
+  if (!pointerLocked || G.mode !== 'play') return;
+  G.yaw   -= e.movementX * 0.0022;
+  G.pitch -= e.movementY * 0.0022;
+  G.pitch = Math.max(-1.35, Math.min(1.35, G.pitch));
+});
+addEventListener('mousedown', e => { if (pointerLocked && e.button === 0) mouseFiring = true; });
+addEventListener('mouseup',   e => { if (e.button === 0) mouseFiring = false; });
+
+// --- touch: left zone stick, right zone look, fire & plant buttons ---
+const stick = { active:false, id:null, ox:0, oy:0, dx:0, dy:0 };
+const look  = { active:false, id:null, lx:0, ly:0 };
+let touchFiring = false, touchPlanting = false;
+
+el.stickZone.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  stick.active = true; stick.id = t.identifier;
+  stick.ox = t.clientX; stick.oy = t.clientY; stick.dx = 0; stick.dy = 0;
+  el.stickBase.style.display = 'block';
+  el.stickBase.style.left = t.clientX+'px'; el.stickBase.style.top = t.clientY+'px';
+}, {passive:false});
+el.stickZone.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches){
+    if (t.identifier !== stick.id) continue;
+    const dx = t.clientX - stick.ox, dy = t.clientY - stick.oy;
+    const len = Math.hypot(dx,dy), max = 48;
+    const k = len > max ? max/len : 1;
+    stick.dx = dx*k/max; stick.dy = dy*k/max;
+    el.stickNub.style.transform = `translate(calc(-50% + ${dx*k}px), calc(-50% + ${dy*k}px))`;
+  }
+}, {passive:false});
+const stickEnd = e => {
+  for (const t of e.changedTouches){
+    if (t.identifier !== stick.id) continue;
+    stick.active = false; stick.dx = 0; stick.dy = 0;
+    el.stickBase.style.display = 'none';
+    el.stickNub.style.transform = 'translate(-50%,-50%)';
+  }
+};
+el.stickZone.addEventListener('touchend', stickEnd);
+el.stickZone.addEventListener('touchcancel', stickEnd);
+
+el.lookZone.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  look.active = true; look.id = t.identifier; look.lx = t.clientX; look.ly = t.clientY;
+}, {passive:false});
+el.lookZone.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches){
+    if (t.identifier !== look.id) continue;
+    G.yaw   -= (t.clientX - look.lx) * 0.005;
+    G.pitch -= (t.clientY - look.ly) * 0.005;
+    G.pitch = Math.max(-1.35, Math.min(1.35, G.pitch));
+    look.lx = t.clientX; look.ly = t.clientY;
+  }
+}, {passive:false});
+const lookEnd = e => {
+  for (const t of e.changedTouches){ if (t.identifier === look.id) look.active = false; }
+};
+el.lookZone.addEventListener('touchend', lookEnd);
+el.lookZone.addEventListener('touchcancel', lookEnd);
+
+el.fireBtn.addEventListener('touchstart', e => { e.preventDefault(); touchFiring = true; }, {passive:false});
+el.fireBtn.addEventListener('touchend',   e => { e.preventDefault(); touchFiring = false; }, {passive:false});
+el.plantBtn.addEventListener('touchstart', e => { e.preventDefault(); touchPlanting = true; }, {passive:false});
+el.plantBtn.addEventListener('touchend',   e => { e.preventDefault(); touchPlanting = false; }, {passive:false});
+
+/* ============================================================
+   Collision: circle vs AABB list
+   ============================================================ */
+function collide(pos, r){
+  for (const c of colliders){
+    if (c.door && !c.active) continue;
+    const cx = Math.max(c.x1, Math.min(pos.x, c.x2));
+    const cz = Math.max(c.z1, Math.min(pos.z, c.z2));
+    const dx = pos.x - cx, dz = pos.z - cz;
+    const d2 = dx*dx + dz*dz;
+    if (d2 < r*r){
+      const d = Math.sqrt(d2) || 0.0001;
+      const push = (r - d) / d;
+      pos.x += dx * push; pos.z += dz * push;
+    }
+  }
+}
+
+/* ============================================================
+   Line of sight (2D grid vs AABBs — cheap, no raycaster allocs)
+   ============================================================ */
+function losBlocked(ax, az, bx, bz){
+  for (const c of colliders){
+    if (c.door && !c.active) continue;
+    if (segIntersectsAABB(ax, az, bx, bz, c)) return true;
+  }
+  return false;
+}
+function segIntersectsAABB(x0,z0,x1,z1,c){
+  // slab method
+  const dx = x1-x0, dz = z1-z0;
+  let tmin = 0, tmax = 1;
+  if (Math.abs(dx) < 1e-9){ if (x0 < c.x1 || x0 > c.x2) return false; }
+  else {
+    let t1 = (c.x1-x0)/dx, t2 = (c.x2-x0)/dx;
+    if (t1 > t2) [t1,t2] = [t2,t1];
+    tmin = Math.max(tmin,t1); tmax = Math.min(tmax,t2);
+    if (tmin > tmax) return false;
+  }
+  if (Math.abs(dz) < 1e-9){ if (z0 < c.z1 || z0 > c.z2) return false; }
+  else {
+    let t1 = (c.z1-z0)/dz, t2 = (c.z2-z0)/dz;
+    if (t1 > t2) [t1,t2] = [t2,t1];
+    tmin = Math.max(tmin,t1); tmax = Math.min(tmax,t2);
+    if (tmin > tmax) return false;
+  }
+  return true;
+}
+
+/* ============================================================
+   Radio
+   ============================================================ */
+function radio(key){
+  if (G.radioFired.has(key)) return;
+  G.radioFired.add(key);
+  (RADIO[key] || []).forEach(l => G.radioQueue.push(l));
+}
+function updateRadio(dt){
+  G.radioT -= dt;
+  if (G.radioT <= 0 && G.radioQueue.length){
+    const l = G.radioQueue.shift();
+    AudioSys.radioBlip();
+    const div = document.createElement('div');
+    div.className = 'radioLine';
+    div.innerHTML = `<span class="who">[${l.who}]</span> ${l.text}`;
+    el.radio.appendChild(div);
+    requestAnimationFrame(()=>div.classList.add('show'));
+    setTimeout(()=>{ div.classList.remove('show'); setTimeout(()=>div.remove(), 400); }, 4200);
+    while (el.radio.children.length > 3) el.radio.firstChild.remove();
+    G.radioT = 1.6;
+  }
+}
+
+/* ============================================================
+   Combat
+   ============================================================ */
+const _rayDir = new THREE.Vector3();
+const _muzzle = new THREE.Vector3();
+
+function tryFire(dt){
+  G.fireCd -= dt;
+  const wantFire = (mouseFiring || touchFiring || keys['Space']) && G.hasRifle;
+  if (!wantFire || G.fireCd > 0) return;
+  G.fireCd = 0.18; // fire-rate cap
+  AudioSys.shot();
+  G.shakeT = 0.06;
+  viewRifle.position.z = -0.42; // recoil, eased back in update
+
+  camera.getWorldDirection(_rayDir);
+  const origin = new THREE.Vector3();
+  camera.getWorldPosition(origin);
+
+  // find nearest hit: walls (2D) vs drones (3D sphere test along ray)
+  let bestT = 60, bestDrone = null;
+  // wall distance along ray (sample 2D)
+  const end = origin.clone().addScaledVector(_rayDir, 60);
+  let wallT = 60;
+  for (const c of colliders){
+    if (c.door && !c.active) continue;
+    const t = rayAABB2D(origin.x, origin.z, _rayDir.x, _rayDir.z, c);
+    if (t !== null && t < wallT) wallT = t;
+  }
+  bestT = wallT;
+  const _toDrone = new THREE.Vector3();
+  for (const d of drones){
+    if (!d.alive) continue;
+    _toDrone.copy(d.mesh.position).sub(origin);
+    const t = _toDrone.dot(_rayDir);
+    if (t < 0 || t > bestT) continue;
+    const closest2 = _toDrone.lengthSq() - t*t;
+    const rad = d.kind === 'crawler' ? .55 : .65;
+    if (closest2 < rad*rad){ bestT = t; bestDrone = d; }
+  }
+
+  const hitPoint = origin.clone().addScaledVector(_rayDir, bestT);
+  viewRifle.getWorldPosition(_muzzle);
+  spawnTracer(_muzzle.clone().addScaledVector(_rayDir, .4), hitPoint);
+
+  if (bestDrone){
+    AudioSys.hitConfirm();
+    damageDrone(bestDrone, 16);
+  }
+}
+function rayAABB2D(ox, oz, dx, dz, c){
+  let tmin = -Infinity, tmax = Infinity;
+  if (Math.abs(dx) < 1e-9){ if (ox < c.x1 || ox > c.x2) return null; }
+  else {
+    let t1=(c.x1-ox)/dx, t2=(c.x2-ox)/dx;
+    if (t1>t2)[t1,t2]=[t2,t1];
+    tmin=Math.max(tmin,t1); tmax=Math.min(tmax,t2);
+  }
+  if (Math.abs(dz) < 1e-9){ if (oz < c.z1 || oz > c.z2) return null; }
+  else {
+    let t1=(c.z1-oz)/dz, t2=(c.z2-oz)/dz;
+    if (t1>t2)[t1,t2]=[t2,t1];
+    tmin=Math.max(tmin,t1); tmax=Math.min(tmax,t2);
+  }
+  if (tmax < tmin || tmax < 0) return null;
+  return tmin > 0 ? tmin : tmax;
+}
+
+function damageDrone(d, dmg){
+  d.hp -= dmg;
+  if (d.state === 'idle') setDroneState(d, 'alert');
+  if (d.hp <= 0 && d.alive){
+    d.alive = false; d.deathT = .4;
+    AudioSys.droneDie();
+  }
+}
+function setDroneState(d, s){
+  if (d.state === s) return;
+  d.state = s; d.stateT = 0;
+  const alert = s !== 'idle';
+  if (alert && d.kind === 'sentry' && !d.alertMat) d.alertMat = droneMatAlert.clone();
+  d.mesh.material = alert ? (d.alertMat || droneMatAlert) : droneMatIdle;
+  d.edge.material = alert ? droneEdgeAlert : droneEdgeIdle;
+  if (s === 'alert') AudioSys.alert();
+}
+
+function damagePlayer(dmg){
+  if (G.mode !== 'play') return;
+  G.hp -= dmg;
+  G.lastDamageT = G.time;
+  AudioSys.hurt();
+  el.dmg.style.opacity = .9;
+  setTimeout(()=> el.dmg.style.opacity = 0, 220);
+  if (G.hp <= 0){ G.hp = 0; die(); }
+}
+
+/* ============================================================
+   Drone AI: idle > alert > attack
+   ============================================================ */
+function updateDrones(dt){
+  const px = yawObj.position.x, pz = yawObj.position.z;
+  let updated = 0;
+  for (const d of drones){
+    if (!d.alive){
+      if (d.deathT > 0){
+        d.deathT -= dt;
+        d.mesh.scale.setScalar(Math.max(.01, d.deathT/.4));
+        d.mesh.rotation.y += dt*20;
+        if (d.deathT <= 0) scene.remove(d.mesh);
+      }
+      continue;
+    }
+    const m = d.mesh.position;
+    const distX = m.x - px, distZ = m.z - pz;
+    const dist = Math.hypot(distX, distZ);
+    if (dist > 46) continue;              // far: fully dormant
+    if (++updated > MAX_ACTIVE + 4) continue; // hard update cap safety
+    d.stateT += dt;
+
+    // LOS check, throttled per-drone
+    d.losT -= dt;
+    let seesPlayer = d.seesPlayer || false;
+    if (d.losT <= 0){
+      d.losT = 0.16;
+      seesPlayer = dist < 17 && !losBlocked(m.x, m.z, px, pz);
+      d.seesPlayer = seesPlayer;
+    }
+
+    if (d.state === 'idle'){
+      // gentle bob / patrol
+      d.mesh.rotation.y += dt * .6;
+      if (d.kind === 'sentry'){
+        m.x += d.patrolDir * dt * .5;
+        if (Math.abs(m.x - d.home.x) > 1.4) d.patrolDir *= -1;
+      }
+      m.y = d.home.y + Math.sin(G.time*2 + d.id)*0.08;
+      if (seesPlayer) setDroneState(d, 'alert');
+    }
+    else if (d.state === 'alert'){
+      // face player, brief wind-up, then attack
+      d.mesh.lookAt(px, m.y, pz);
+      if (d.stateT > .45) setDroneState(d, 'attack');
+    }
+    else { // attack
+      d.mesh.lookAt(px, m.y, pz);
+      if (d.kind === 'crawler'){
+        if (dist > 1.1){
+          const s = 3.4 * dt / dist;
+          m.x -= distX * s; m.z -= distZ * s;
+          collide(m, .45);
+          m.y = .5 + Math.abs(Math.sin(G.time*10 + d.id))*.12;
+        }
+        d.meleeCd -= dt;
+        if (dist < 1.3 && d.meleeCd <= 0){
+          d.meleeCd = 1.0;
+          damagePlayer(10);
+        }
+        if (!seesPlayer && dist > 30) setDroneState(d, 'idle');
+      } else {
+        // sentry: telegraphed shot cycle
+        m.y = d.home.y + Math.sin(G.time*3 + d.id)*.1;
+        if (!seesPlayer){ d.chargeT = 0; d.mesh.material.emissiveIntensity = 1; continue; }
+        d.chargeT += dt;
+        if (d.chargeT > 1.6){
+          // telegraph: glow ramps for final .7s
+          const w = d.chargeT - 1.6;
+          if (w < .7){
+            if (w < dt) AudioSys.sentryCharge();
+            d.mesh.material.emissiveIntensity = 1 + w*3;
+          } else {
+            d.mesh.material.emissiveIntensity = 1;
+            d.chargeT = 0;
+            fireProjectile(m.clone(), new THREE.Vector3(px, PLAYER_EYE - .2, pz));
+          }
+        }
+      }
+    }
+  }
+}
+
+function updateProjectiles(dt){
+  for (let i = projectiles.length-1; i >= 0; i--){
+    const p = projectiles[i];
+    p.life -= dt;
+    p.mesh.position.addScaledVector(p.vel, dt);
+    const dx = p.mesh.position.x - yawObj.position.x;
+    const dy = p.mesh.position.y - PLAYER_EYE + .2;
+    const dz = p.mesh.position.z - yawObj.position.z;
+    let dead = p.life <= 0;
+    if (dx*dx + dy*dy + dz*dz < .45){
+      damagePlayer(12); dead = true;
+    } else {
+      // wall hit
+      for (const c of colliders){
+        if (c.door && !c.active) continue;
+        const x = p.mesh.position.x, z = p.mesh.position.z;
+        if (x > c.x1-.1 && x < c.x2+.1 && z > c.z1-.1 && z < c.z2+.1){ dead = true; break; }
+      }
+    }
+    if (dead){ scene.remove(p.mesh); projectiles.splice(i,1); }
+  }
+}
+
+/* ============================================================
+   Doors / checkpoints / progression
+   ============================================================ */
+function updateDoors(dt){
+  doors.forEach(dr => {
+    if (!dr.open){
+      const canOpen = dr.index === 0 ? G.hasRifle : segmentCleared(dr.index);
+      if (canOpen){
+        dr.open = true;
+        AudioSys.doorOpen();
+        if (dr.index === 1) radio('seg1_clear');
+        if (dr.index === 2) radio('seg2_clear');
+        if (dr.index === 3) radio('seg3_clear');
+      }
+    }
+    if (dr.open && dr.anim < 1){
+      dr.anim = Math.min(1, dr.anim + dt*.7);
+      dr.mesh.position.y = WALL_H/2 - dr.anim * (WALL_H - .05); // slides into floor
+      if (dr.anim > .6) dr.collider.active = false;
+    }
+  });
+
+  // segment tracking + checkpoints + zone radio
+  const z = yawObj.position.z;
+  let seg = 0;
+  ROOMS.forEach((r,i)=>{ if (z <= r.z2 && z >= r.z1) seg = i; });
+  if (seg !== G.currentSegment && seg > G.currentSegment){
+    G.currentSegment = seg;
+    G.checkpoint.pos.set(0, 0, ROOMS[seg].z2 - 2);
+    G.checkpoint.yaw = 0; // yaw 0 faces -z, deeper into the hive
+    G.checkpoint.segment = seg;
+    AudioSys.checkpoint();
+    if (seg === 2) radio('seg2_enter');
+    if (seg === 3) radio('seg3_enter');
+    if (seg === 4){
+      radio('core_enter');
+      startAlarm();
+    }
+    setObjectiveText();
+  }
+  // mid-segment chatter zones
+  if (z < -26 ) radio('seg1_mid');
+  if (z < -60 ) radio('seg2_mid');
+  if (z < -97 ) radio('seg3_mid');
+}
+
+function setObjectiveText(){
+  const t = {
+    0: G.hasRifle ? 'ADVANCE INTO THE HIVE' : 'FIND YOUR WEAPON',
+    1: 'CLEAR HIVE SEGMENT 1 / 3',
+    2: 'CLEAR HIVE SEGMENT 2 / 3',
+    3: 'CLEAR HIVE SEGMENT 3 / 3',
+    4: G.planted ? 'GET CLEAR' : 'PLANT THE CHARGE AT THE CORE',
+  }[G.currentSegment] || '';
+  el.objective.textContent = t;
+}
+
+/* ============================================================
+   Alarm + core wave + objective
+   ============================================================ */
+function startAlarm(){
+  if (G.alarm) return;
+  G.alarm = true;
+  AudioSys.alarmStart();
+  radio('alarm');
+}
+function updateWave(dt){
+  if (!G.alarm || G.planted) return;
+  G.waveT -= dt;
+  if (G.waveT <= 0 && G.waveSpawned < WAVE_TOTAL && activeDroneCount() < MAX_ACTIVE){
+    G.waveT = 3;
+    const [x,z] = WAVE_SPAWNS[G.waveSpawned % WAVE_SPAWNS.length];
+    const d = makeDrone('crawler', x, z, 9); // segment 9 = wave (never gates doors)
+    d.spawned = true;
+    setDroneState(d, 'attack');
+    scene.add(d.mesh);
+    G.waveSpawned++;
+  }
+}
+
+function updateObjective(dt){
+  if (G.currentSegment !== 4 || G.planted) { el.plantWrap.style.display='none'; el.plantBtn.style.display='none'; return; }
+  const dx = yawObj.position.x - CORE_POS.x, dz = yawObj.position.z - CORE_POS.z;
+  const near = (dx*dx + dz*dz) < 9;
+  const holding = keys['KeyE'] || touchPlanting;
+  if (near){
+    if (IS_TOUCH) el.plantBtn.style.display = 'block';
+    el.prompt.style.display = holding ? 'none' : 'block';
+    el.prompt.textContent = IS_TOUCH ? 'HOLD PLANT TO ARM THE CHARGE' : 'HOLD [E] TO ARM THE CHARGE';
+    if (holding){
+      G.planting = true;
+      const prev = G.plantProgress;
+      G.plantProgress = Math.min(1, G.plantProgress + dt/5);
+      if (Math.floor(prev*10) !== Math.floor(G.plantProgress*10)) AudioSys.plantTick();
+      el.plantWrap.style.display = 'block';
+      el.plantFill.style.width = (G.plantProgress*100).toFixed(1)+'%';
+      if (G.plantProgress >= 1) plantComplete();
+    } else {
+      G.planting = false;
+      el.plantWrap.style.display = G.plantProgress > 0 ? 'block' : 'none';
+    }
+  } else {
+    G.planting = false;
+    el.prompt.style.display = 'none';
+    el.plantBtn.style.display = 'none';
+    el.plantWrap.style.display = G.plantProgress > 0 ? 'block' : 'none';
+  }
+}
+
+function plantComplete(){
+  G.planted = true;
+  G.plantProgress = 1;
+  el.plantWrap.style.display = 'none';
+  el.prompt.style.display = 'none';
+  el.plantBtn.style.display = 'none';
+  AudioSys.planted();
+  AudioSys.alarmStop();
+  radio('planted');
+  setObjectiveText();
+  coreMat.emissive.setHex(0xffd23f);
+  // brief beat, then extraction
+  setTimeout(()=>{ if (G.mode === 'play') beginExtraction(); }, 2600);
+}
+
+function beginExtraction(){
+  G.mode = 'extracting';
+  radio('extract');
+  AudioSys.extract();
+  el.fade.style.transition = 'opacity 2.8s';
+  el.fade.style.opacity = 1;
+  setTimeout(showEndCard, 3100);
+}
+
+function showEndCard(){
+  G.mode = 'end';
+  if (document.pointerLockElement) document.exitPointerLock();
+  hudVisible(false);
+  el.end.style.display = 'flex';
+  el.fade.style.opacity = 0;
+}
+
+/* ============================================================
+   Death / respawn
+   ============================================================ */
+function die(){
+  if (G.mode !== 'play') return;
+  G.mode = 'dead';
+  AudioSys.death();
+  AudioSys.heartbeatStop();
+  el.redFade.style.opacity = 1;
+  setTimeout(respawn, 1600);
+}
+function respawn(){
+  const seg = G.checkpoint.segment;
+  // reset the segment being attempted (and the core wave if applicable)
+  if (seg >= 1 && seg <= 4) spawnSegment(seg);
+  if (seg === 4){
+    G.waveSpawned = 0; G.waveT = 2; G.plantProgress = 0; G.planting = false;
+    // remove wave drones
+    for (let i = drones.length-1; i >= 0; i--){
+      if (drones[i].segment === 9){ scene.remove(drones[i].mesh); drones.splice(i,1); }
+    }
+  }
+  projectiles.forEach(p=>scene.remove(p.mesh)); projectiles.length = 0;
+  yawObj.position.set(G.checkpoint.pos.x, PLAYER_EYE, G.checkpoint.pos.z);
+  G.yaw = G.checkpoint.yaw; G.pitch = 0;
+  G.hp = 100; G.lastDamageT = G.time;
+  el.redFade.style.opacity = 0;
+  G.mode = 'play';
+}
+
+/* ============================================================
+   Player movement
+   ============================================================ */
+const _fwd = new THREE.Vector3(), _right = new THREE.Vector3();
+function updatePlayer(dt){
+  let mx = 0, mz = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    mz -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  mz += 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  mx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+  if (stick.active){ mx += stick.dx; mz += stick.dy; }
+  const len = Math.hypot(mx, mz);
+  if (len > 1){ mx/=len; mz/=len; }
+
+  yawObj.rotation.y = G.yaw;
+  pitchObj.rotation.x = G.pitch;
+
+  _fwd.set(-Math.sin(G.yaw), 0, -Math.cos(G.yaw));
+  _right.set(Math.cos(G.yaw), 0, -Math.sin(G.yaw));
+  yawObj.position.addScaledVector(_fwd, -mz * MOVE_SPEED * dt);
+  yawObj.position.addScaledVector(_right, mx * MOVE_SPEED * dt);
+  collide(yawObj.position, PLAYER_R);
+  yawObj.position.y = PLAYER_EYE + (len > .1 ? Math.sin(G.time*11)*.03 : 0);
+
+  // camera shake
+  if (G.shakeT > 0){
+    G.shakeT -= dt;
+    camera.position.set((Math.random()-.5)*.02, (Math.random()-.5)*.02, 0);
+  } else camera.position.set(0,0,0);
+
+  // rifle recoil recovery + sway
+  if (viewRifle.visible){
+    viewRifle.position.z += (-.5 - viewRifle.position.z) * dt * 12;
+    viewRifle.position.y = -.22 + Math.sin(G.time*10)*(len>.1?.006:.002);
+  }
+
+  // health regen: 5s without damage
+  if (G.hp < 100 && G.time - G.lastDamageT > 5){
+    G.hp = Math.min(100, G.hp + 26*dt);
+  }
+  el.healthFill.style.width = G.hp.toFixed(0)+'%';
+  el.healthFill.style.background = G.hp > 35 ? 'var(--grn)' : 'var(--red)';
+
+  // rifle pickup
+  if (!G.hasRifle){
+    const d = yawObj.position.distanceTo(rifleFloor.position);
+    el.prompt.style.display = 'block';
+    el.prompt.textContent = 'RETRIEVE THE PULSE RIFLE';
+    if (d < 1.6) pickupRifle();
+  }
+}
+function pickupRifle(){
+  if (G.hasRifle) return;
+  G.hasRifle = true;
+  scene.remove(rifleFloor);
+  viewRifle.visible = true;
+  el.prompt.style.display = 'none';
+  el.crosshair.style.display = 'block';
+  if (IS_TOUCH) el.fireBtn.style.display = 'block';
+  radio('pickup');
+  AudioSys.checkpoint();
+  AudioSys.humStart();
+  G.currentSegment = 0;
+  setObjectiveText();
+  setTimeout(setObjectiveText, 50);
+}
+
+/* ============================================================
+   Alarm visuals + misc FX
+   ============================================================ */
+function updateFX(dt){
+  // tracers
+  for (let i = tracers.length-1; i >= 0; i--){
+    const t = tracers[i];
+    t.life -= dt;
+    t.line.material.opacity = Math.max(0, t.life/.07);
+    if (t.life <= 0){ scene.remove(t.line); t.line.geometry.dispose(); tracers.splice(i,1); }
+  }
+  // core pulse
+  coreGroup.rotation.y += dt * .4;
+  coreMat.emissiveIntensity = .9 + Math.sin(G.time*3)*.3;
+  // alarm strips
+  if (G.alarm && !G.planted){
+    const pulse = (Math.sin(G.time*6) + 1) / 2;
+    matStrip.color.setRGB(1, .1 + pulse*.2, .2);
+  } else if (G.planted){
+    matStrip.color.setHex(0xffd23f);
+  }
+}
+
+/* ============================================================
+   Intro sequence (Scene 1: Awakening)
+   ============================================================ */
+let introState = null;
+function startIntro(){
+  G.mode = 'intro';
+  el.start.style.display = 'none';
+  el.intro.style.display = 'flex';
+  el.fade.style.opacity = 0;
+  AudioSys.init();
+  AudioSys.resume();
+  AudioSys.heartbeatStart();
+  // lying on the floor, looking up
+  yawObj.position.set(0, .35, 0);
+  G.pitch = 1.1; pitchObj.rotation.x = G.pitch;
+  introState = { line: 0, t: 0, phase: 'lines', riseT: 0 };
+  setTimeout(()=>{ el.skipBtn.style.opacity = .7; }, 2500);
+}
+function updateIntro(dt){
+  const s = introState;
+  if (!s) return;
+  s.t += dt;
+  if (s.phase === 'lines'){
+    if (s.line < INTRO_LINES.length){
+      if (s.t > .4 && !s.shown){
+        el.introText.textContent = INTRO_LINES[s.line];
+        el.introText.style.opacity = 1;
+        s.shown = true;
+      }
+      if (s.t > 3.6){
+        el.introText.style.opacity = 0;
+        s.line++; s.t = 0; s.shown = false;
+      }
+    } else {
+      s.phase = 'rise'; s.t = 0;
+      el.intro.style.background = 'transparent';
+      el.introText.style.display = 'none';
+    }
+  }
+  else if (s.phase === 'rise'){
+    const k = Math.min(1, s.t / 2.6);
+    const e = k*k*(3-2*k); // smoothstep
+    yawObj.position.y = .35 + (PLAYER_EYE - .35) * e;
+    G.pitch = 1.1 * (1 - e);
+    pitchObj.rotation.x = G.pitch;
+    if (k >= 1) finishIntro();
+  }
+}
+function finishIntro(skipAll){
+  introState = null;
+  AudioSys.heartbeatStop();
+  el.intro.style.display = 'none';
+  el.intro.style.background = '';
+  el.introText.style.display = '';
+  yawObj.position.set(0, PLAYER_EYE, 0);
+  G.pitch = 0; G.yaw = 0;
+  G.mode = 'play';
+  hudVisible(true);
+  if (IS_TOUCH){ el.stickZone.style.display='block'; el.lookZone.style.display='block'; }
+  else if (!pointerLocked) renderer.domElement.requestPointerLock();
+  if (skipAll) pickupRifle();
+  setObjectiveText();
+}
+el.skipBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (G.mode === 'intro') finishIntro(true);
+});
+
+function hudVisible(v){
+  const d = v ? 'block' : 'none';
+  el.healthWrap.style.display = d;
+  el.objective.style.display = d;
+  if (!v){
+    el.crosshair.style.display = 'none';
+    el.fireBtn.style.display = 'none';
+    el.plantBtn.style.display = 'none';
+    el.stickZone.style.display = 'none';
+    el.lookZone.style.display = 'none';
+    el.prompt.style.display = 'none';
+    el.plantWrap.style.display = 'none';
+  } else if (G.hasRifle){
+    el.crosshair.style.display = 'block';
+    if (IS_TOUCH) el.fireBtn.style.display = 'block';
+  }
+}
+
+/* ============================================================
+   Boot / title / replay
+   ============================================================ */
+el.startBtn.addEventListener('click', () => {
+  AudioSys.init(); AudioSys.resume();
+  startIntro();
+});
+el.replay.addEventListener('click', () => location.reload());
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) AudioSys.resume(); // context suspends itself; resumed on return
+});
+
+// reveal title
+requestAnimationFrame(()=>{ el.fade.style.opacity = 0; });
+G.mode = 'title';
+
+// debug hook (console-only; not used by game logic)
+window.__LATM = { G, drones, yawObj, finishIntro, pickupRifle, damageDrone };
+
+/* ============================================================
+   Main loop
+   ============================================================ */
+let lastT = performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  const nowT = performance.now();
+  let dt = (nowT - lastT) / 1000;
+  lastT = nowT;
+  dt = Math.min(dt, 0.05); // clamp tab-switch spikes
+  G.time += dt;
+
+  if (G.mode === 'intro') updateIntro(dt);
+  if (G.mode === 'play'){
+    updatePlayer(dt);
+    tryFire(dt);
+    updateDrones(dt);
+    updateProjectiles(dt);
+    updateDoors(dt);
+    updateWave(dt);
+    updateObjective(dt);
+    updateRadio(dt);
+  }
+  if (G.mode === 'dead' || G.mode === 'extracting'){
+    updateRadio(dt);
+    updateDrones(dt);
+  }
+  updateFX(dt);
+  renderer.render(scene, camera);
+}
+loop();
+</script>
+</body>
+</html>
