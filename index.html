@@ -635,14 +635,55 @@ scene.add(coreGroup);
 const CORE_POS = new THREE.Vector3(0, 1.6, -134);
 
 // pickup rifle on floor in start room
-const rifleFloor = new THREE.Group();
+// shared unit geometries for all built models (scaled per part)
+const sphereGeo  = new THREE.SphereGeometry(1, 14, 12);
+const coneGeo    = new THREE.ConeGeometry(1, 1, 6);
+const cylGeo     = new THREE.CylinderGeometry(1, 1, 1, 8);
+const torusGeoLg = new THREE.TorusGeometry(.5, .045, 6, 24);
+const torusGeoSm = new THREE.TorusGeometry(.42, .028, 6, 20);
+const discGeo    = new THREE.CircleGeometry(.09, 10);
+const eyeGeoC    = new THREE.SphereGeometry(.09, 10, 8);
+const eyeGeoS    = new THREE.SphereGeometry(.12, 12, 10);
+
 const gunMetal = new THREE.MeshStandardMaterial({ color:0x46524a, roughness:.38, metalness:.55 });
 const gunDark  = new THREE.MeshStandardMaterial({ color:0x252c26, roughness:.5, metalness:.5 });
+const glowGreenMat = new THREE.MeshBasicMaterial({ color:0x2bff7f });
+
+// pulse rifle model, used for both the floor pickup and the view-model
+function buildRifle(){
+  const r = new THREE.Group();
+  const parts = [
+    [unitBox, gunMetal, [.085,.11,.42],  [0,0,0],       [0,0,0]],   // receiver
+    [unitBox, gunDark,  [.07,.08,.26],   [0,-.005,-.32],[0,0,0]],   // fore-end
+    [cylGeo,  gunDark,  [.018,.30,.018], [0,.02,-.55],  [Math.PI/2,0,0]], // barrel
+    [cylGeo,  gunMetal, [.028,.07,.028], [0,.02,-.70],  [Math.PI/2,0,0]], // muzzle brake
+    [unitBox, gunDark,  [.03,.02,.34],   [0,.07,-.10],  [0,0,0]],   // top rail
+    [unitBox, gunDark,  [.05,.05,.03],   [0,.10,.02],   [0,0,0]],   // sight base
+    [unitBox, gunDark,  [.05,.14,.06],   [0,-.12,.10],  [.35,0,0]], // grip
+    [unitBox, gunMetal, [.06,.09,.18],   [0,-.02,.28],  [0,0,0]],   // stock
+    [unitBox, glowGreenMat, [.04,.035,.09], [0,-.065,-.02], [0,0,0]], // power cell
+    [unitBox, matStrip, [.015,.015,.30], [.045,.02,-.15], [0,0,0]], // side light strip
+  ];
+  parts.forEach(([geo,mat,s,p,rot])=>{
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.set(...s); m.position.set(...p); m.rotation.set(...rot);
+    r.add(m);
+  });
+  const ring = new THREE.Mesh(torusGeoSm, gunDark);       // holo sight ring
+  ring.scale.setScalar(.1); ring.position.set(0,.14,.02);
+  const dot = new THREE.Mesh(eyeGeoC, glowGreenMat);      // holo dot
+  dot.scale.setScalar(.22); dot.position.set(0,.14,.015);
+  r.add(ring, dot);
+  return r;
+}
+
+const rifleFloor = new THREE.Group();
 {
-  const body = new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.9), gunMetal);
+  const rf = buildRifle();
+  rf.rotation.set(0, .9, Math.PI/2);
   const glow = new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.5), matStrip);
-  glow.position.y = .1;
-  rifleFloor.add(body, glow);
+  glow.position.y = .12;
+  rifleFloor.add(rf, glow);
   rifleFloor.position.set(0, .25, -4);
   scene.add(rifleFloor);
 }
@@ -650,17 +691,21 @@ const gunDark  = new THREE.MeshStandardMaterial({ color:0x252c26, roughness:.5, 
 // view-model rifle (attached to camera after pickup)
 const viewRifle = new THREE.Group();
 {
-  const body = new THREE.Mesh(new THREE.BoxGeometry(.09,.12,.55), gunMetal);
-  const barrel = new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.38), gunDark);
-  barrel.position.set(0,.03,-.42);
-  const shroud = new THREE.Mesh(new THREE.BoxGeometry(.07,.06,.22), gunDark);
-  shroud.position.set(0,.02,-.28);
-  const glow = new THREE.Mesh(new THREE.BoxGeometry(.02,.02,.4), matStrip);
-  glow.position.set(0,.075,-.1);
-  const cell = new THREE.Mesh(new THREE.BoxGeometry(.05,.04,.1),
-    new THREE.MeshBasicMaterial({ color:0x2bff7f }));
-  cell.position.set(0,-.05,.12);
-  viewRifle.add(body, barrel, shroud, glow, cell);
+  const vr = buildRifle();
+  // the view-model sits ~0.5m from the headlamp; darken its lit materials
+  // so physically-correct falloff doesn't blow it out white
+  const dimmed = new Map();
+  vr.traverse(o => {
+    if (o.isMesh && o.material.isMeshStandardMaterial){
+      if (!dimmed.has(o.material)){
+        const m = o.material.clone();
+        m.color.multiplyScalar(.09);
+        dimmed.set(o.material, m);
+      }
+      o.material = dimmed.get(o.material);
+    }
+  });
+  viewRifle.add(vr);
   viewRifle.position.set(.24,-.22,-.5);
   viewRifle.visible = false;
   camera.add(viewRifle);
@@ -710,52 +755,113 @@ const shadowGeo = new THREE.PlaneGeometry(1,1);
 const EYE_GREEN = 0x2bff7f, EYE_RED = 0xff2b3c;
 const droneMetal = new THREE.MeshStandardMaterial({ color:0x59685c, roughness:.42, metalness:.55 });
 const droneDark  = new THREE.MeshStandardMaterial({ color:0x2b332c, roughness:.55, metalness:.5 });
-const crawlerBodyGeo = new THREE.IcosahedronGeometry(.32, 1);
-const legGeo   = new THREE.ConeGeometry(.05, .55, 5);
-const eyeGeoC  = new THREE.SphereGeometry(.09, 10, 8);
-const sentryBodyGeo = new THREE.SphereGeometry(.34, 14, 12);
-const ringGeo  = new THREE.TorusGeometry(.5, .05, 6, 22);
-const eyeGeoS  = new THREE.SphereGeometry(.14, 12, 10);
-const finGeo   = new THREE.BoxGeometry(.05, .3, .18);
+const droneArmor = new THREE.MeshStandardMaterial({ color:0x48594d, roughness:.5, metalness:.6 });
+const thrusterGlowMat = new THREE.MeshBasicMaterial({ color:0x39ff88, transparent:true,
+  opacity:.7, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+
+// six-legged hunter with an articulated walk cycle and a scanning sensor head
+function buildCrawler(eyeMat){
+  const g = new THREE.Group(), anim = { legs: [] };
+  const hull = new THREE.Mesh(sphereGeo, droneMetal);
+  hull.scale.set(.30,.20,.38); g.add(hull);
+  const shell = new THREE.Mesh(sphereGeo, droneArmor);
+  shell.scale.set(.26,.15,.33); shell.position.y = .10; g.add(shell);
+  const vent = new THREE.Mesh(unitBox, droneDark);
+  vent.scale.set(.18,.07,.24); vent.position.y = -.12; g.add(vent);
+  const head = new THREE.Group();
+  const skull = new THREE.Mesh(sphereGeo, droneDark); skull.scale.setScalar(.11);
+  const eye = new THREE.Mesh(eyeGeoC, eyeMat); eye.position.z = .08;
+  const antL = new THREE.Mesh(cylGeo, droneDark);
+  antL.scale.set(.008,.17,.008); antL.position.set(.05,.13,-.02); antL.rotation.z = .35;
+  const antR = antL.clone(); antR.position.x = -.05; antR.rotation.z = -.35;
+  head.add(skull, eye, antL, antR);
+  head.position.set(0,.15,.30);
+  g.add(head); anim.head = head;
+  for (let i=0;i<6;i++){
+    const side = i<3 ? 1 : -1;
+    const theta = side * (0.7 + (i%3) * 0.85);        // radians around from forward
+    const root = new THREE.Group();
+    root.position.set(Math.sin(theta)*.26, -.02, Math.cos(theta)*.26);
+    root.rotation.y = theta - Math.PI/2;               // local +x points outward
+    const upper = new THREE.Mesh(unitBox, droneMetal);
+    upper.scale.set(.30,.05,.05); upper.position.set(.14,.08,0); upper.rotation.z = .55;
+    const hip = new THREE.Mesh(sphereGeo, droneDark);
+    hip.scale.setScalar(.05);
+    const lower = new THREE.Mesh(coneGeo, droneDark);
+    lower.scale.set(.035,.52,.035); lower.position.set(.37,-.06,0); lower.rotation.z = 2.5;
+    root.add(upper, hip, lower);
+    g.add(root);
+    anim.legs.push({ root, baseYaw: root.rotation.y, phase: (i%2) * Math.PI });
+  }
+  return { g, anim };
+}
+
+// armored hover-sentry: gyro rings, thruster pods, recoiling under-barrel gun
+function buildSentry(eyeMat){
+  const g = new THREE.Group(), anim = {};
+  const hull = new THREE.Mesh(sphereGeo, droneMetal);
+  hull.scale.set(.30,.26,.30); g.add(hull);
+  for (let i=0;i<4;i++){
+    const a = i*Math.PI/2 + Math.PI/4;
+    const plate = new THREE.Mesh(unitBox, droneArmor);
+    plate.scale.set(.17,.21,.035);
+    plate.position.set(Math.sin(a)*.30, .02, Math.cos(a)*.30);
+    plate.rotation.y = a;
+    g.add(plate);
+  }
+  const socket = new THREE.Mesh(torusGeoSm, droneDark);
+  socket.scale.setScalar(.45); socket.position.z = .28;
+  const eye = new THREE.Mesh(eyeGeoS, eyeMat); eye.position.z = .30;
+  const fin = new THREE.Mesh(unitBox, droneDark);
+  fin.scale.set(.04,.26,.16); fin.position.set(0,.36,-.08);
+  g.add(socket, eye, fin);
+  anim.ringH = new THREE.Mesh(torusGeoLg, droneDark);
+  anim.ringH.rotation.x = Math.PI/2;
+  const vGrp = new THREE.Group();
+  const ringV = new THREE.Mesh(torusGeoSm, droneMetal);
+  ringV.rotation.y = Math.PI/2;
+  vGrp.add(ringV); anim.ringV = vGrp;
+  g.add(anim.ringH, vGrp);
+  for (let i=0;i<4;i++){
+    const a = i*Math.PI/2 + Math.PI/4;
+    const pod = new THREE.Mesh(cylGeo, droneDark);
+    pod.scale.set(.05,.11,.05);
+    pod.position.set(Math.sin(a)*.19, -.24, Math.cos(a)*.19);
+    const jet = new THREE.Mesh(discGeo, thrusterGlowMat);
+    jet.rotation.x = -Math.PI/2;
+    jet.position.set(pod.position.x, -.31, pod.position.z);
+    g.add(pod, jet);
+  }
+  const mount = new THREE.Mesh(unitBox, droneDark);
+  mount.scale.set(.08,.09,.14); mount.position.set(0,-.27,.06);
+  g.add(mount);
+  anim.barrel = new THREE.Group();
+  anim.barrel.position.set(0,-.27,.12);
+  const barrel = new THREE.Mesh(cylGeo, gunDark);
+  barrel.scale.set(.03,.32,.03); barrel.rotation.x = Math.PI/2; barrel.position.z = .16;
+  anim.muzzle = new THREE.Object3D();
+  anim.muzzle.position.z = .34;
+  anim.barrel.add(barrel, anim.muzzle);
+  g.add(anim.barrel);
+  anim.recoil = 0;
+  return { g, anim };
+}
 
 const drones = [];
 let droneSeq = 0;
 
 function makeDrone(kind, x, z, segment){
   const isCrawler = kind === 'crawler';
-  const mesh = new THREE.Group();
   const eyeMat = new THREE.MeshBasicMaterial({ color: EYE_GREEN });
-  let ring = null;
-  if (isCrawler){
-    const body = new THREE.Mesh(crawlerBodyGeo, droneMetal);
-    mesh.add(body);
-    for (let i=0;i<6;i++){
-      const a = i/6*Math.PI*2;
-      const leg = new THREE.Mesh(legGeo, droneDark);
-      leg.position.set(Math.cos(a)*.3, -.18, Math.sin(a)*.3);
-      leg.rotation.set(Math.sin(a)*.85, 0, -Math.cos(a)*.85);
-      mesh.add(leg);
-    }
-    const eye = new THREE.Mesh(eyeGeoC, eyeMat);
-    eye.position.set(0, .04, .3);
-    mesh.add(eye);
-  } else {
-    const body = new THREE.Mesh(sentryBodyGeo, droneMetal);
-    ring = new THREE.Mesh(ringGeo, droneDark);
-    ring.rotation.x = Math.PI/2;
-    const eye = new THREE.Mesh(eyeGeoS, eyeMat);
-    eye.position.set(0, 0, .3);
-    const fin = new THREE.Mesh(finGeo, droneDark);
-    fin.position.set(0, .38, -.1);
-    mesh.add(body, ring, eye, fin);
-  }
+  const built = isCrawler ? buildCrawler(eyeMat) : buildSentry(eyeMat);
+  const mesh = built.g;
   // blob shadow, child of the group but pinned to the floor each frame
   const shadow = new THREE.Mesh(shadowGeo, shadowMat);
   shadow.rotation.x = -Math.PI/2;
-  shadow.scale.setScalar(isCrawler ? 1.1 : 1.4);
+  shadow.scale.setScalar(isCrawler ? 1.2 : 1.4);
   mesh.add(shadow);
   const d = {
-    id: droneSeq++, kind, segment, mesh, eyeMat, ring, shadow,
+    id: droneSeq++, kind, segment, mesh, eyeMat, anim: built.anim, shadow,
     home: new THREE.Vector3(x, isCrawler ? .5 : 1.7, z),
     hp: isCrawler ? 30 : 60, maxHp: isCrawler ? 30 : 60,
     state: 'idle',            // idle > alert > attack
@@ -1109,7 +1215,9 @@ function updateDrones(dt){
       if (d.deathT > 0){
         d.deathT -= dt;
         d.mesh.scale.setScalar(Math.max(.01, d.deathT/.4));
-        d.mesh.rotation.y += dt*20;
+        d.mesh.rotation.y += dt*18;
+        d.mesh.rotation.x += dt*7;
+        d.mesh.position.y = Math.max(.15, d.mesh.position.y - dt*2.2);
         if (d.deathT <= 0) scene.remove(d.mesh);
       }
       continue;
@@ -1121,7 +1229,22 @@ function updateDrones(dt){
     if (++updated > MAX_ACTIVE + 4) continue; // hard update cap safety
     d.stateT += dt;
     d.shadow.position.y = .03 - m.y;      // pin blob shadow to the floor
-    if (d.ring) d.ring.rotation.z += dt * (d.state === 'idle' ? .8 : 3);
+    const A = d.anim;
+    if (d.kind === 'sentry'){
+      A.ringH.rotation.z += dt * (d.state === 'idle' ? .8 : 3.2);
+      A.ringV.rotation.x += dt * (d.state === 'idle' ? .5 : 2.1);
+      if (A.recoil > 0) A.recoil = Math.max(0, A.recoil - dt*5);
+      A.barrel.position.z = .12 - A.recoil * .07;
+    } else {
+      const moving = d.state === 'attack';
+      for (const L of A.legs){
+        L.root.rotation.y = L.baseYaw + (moving ? Math.sin(G.time*9 + L.phase) * .3 : 0);
+        L.root.rotation.z = moving ? Math.max(0, Math.cos(G.time*9 + L.phase)) * .22 : 0;
+      }
+      A.head.rotation.y = d.state === 'idle'
+        ? Math.sin(G.time*1.3 + d.id) * .7
+        : A.head.rotation.y * Math.max(0, 1 - dt*8);
+    }
 
     // LOS check, throttled per-drone
     d.losT -= dt;
@@ -1133,8 +1256,7 @@ function updateDrones(dt){
     }
 
     if (d.state === 'idle'){
-      // gentle bob / patrol
-      d.mesh.rotation.y += dt * .6;
+      // gentle bob / patrol (the sensor head does the visible scanning)
       if (d.kind === 'sentry'){
         m.x += d.patrolDir * dt * .5;
         if (Math.abs(m.x - d.home.x) > 1.4) d.patrolDir *= -1;
@@ -1176,7 +1298,10 @@ function updateDrones(dt){
           } else {
             d.eyeMat.color.setHex(EYE_RED);
             d.chargeT = 0;
-            fireProjectile(m.clone(), new THREE.Vector3(px, PLAYER_EYE - .2, pz));
+            const mp = new THREE.Vector3();
+            d.anim.muzzle.getWorldPosition(mp);
+            d.anim.recoil = 1;
+            fireProjectile(mp, new THREE.Vector3(px, PLAYER_EYE - .2, pz));
           }
         }
       }
@@ -1475,6 +1600,8 @@ function updateFX(dt){
   // muzzle flash decay
   if (muzzleLight.intensity > 0)
     muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*300);
+  // sentry thruster flicker (shared material — one write covers all pods)
+  thrusterGlowMat.opacity = .55 + Math.sin(G.time*22)*.25;
   // core pulse
   coreGroup.rotation.y += dt * .4;
   coreMat.emissiveIntensity = .9 + Math.sin(G.time*3)*.3;
