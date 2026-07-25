@@ -168,7 +168,7 @@
         <div class="cBottom">BOOK ONE</div>
       </div>
       <img id="coverImg" alt="Dystopia: Life After The Machines — Book One cover"
-           onload="this.style.display='block';document.getElementById('coverFallback').style.display='none'"
+           onload="if(this.naturalWidth<50){this.remove()}else{this.style.display='block';document.getElementById('coverFallback').style.display='none'}"
            onerror="this.remove()">
     </div>
     <div id="endSub">The hive was only the beginning. Find out how Marcus's war really started &mdash; and where it goes from here.</div>
