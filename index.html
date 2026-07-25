@@ -105,7 +105,10 @@
   #cover{width:min(200px,44vw);aspect-ratio:2/3;border:1px solid var(--grn);
     background:linear-gradient(160deg,#04170c 0%,#010804 60%,#04170c 100%);
     box-shadow:0 0 30px rgba(57,255,136,.35), inset 0 0 40px rgba(57,255,136,.12);
-    display:flex;flex-direction:column;justify-content:space-between;padding:16px 12px;margin:0 auto;}
+    position:relative;overflow:hidden;margin:0 auto;}
+  #coverImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;}
+  #coverFallback{position:absolute;inset:0;display:flex;flex-direction:column;
+    justify-content:space-between;padding:16px 12px;}
   #cover .cTop{font-size:9px;letter-spacing:3px;opacity:.7;}
   #cover .cTitle{font-size:clamp(13px,3vw,17px);letter-spacing:2px;line-height:1.6;
     text-shadow:0 0 10px var(--grn);}
@@ -158,10 +161,15 @@
   <div class="screen" id="endCard">
     <div id="endTitle">MARCUS'S STORY CONTINUES.</div>
     <div id="cover">
-      <div class="cTop">A NOVEL</div>
-      <div class="cTitle">LIFE<br>AFTER THE<br>MACHINES</div>
-      <div class="cGlyph">&#10683;</div>
-      <div class="cBottom">BOOK ONE</div>
+      <div id="coverFallback">
+        <div class="cTop">A NOVEL</div>
+        <div class="cTitle">LIFE<br>AFTER THE<br>MACHINES</div>
+        <div class="cGlyph">&#10683;</div>
+        <div class="cBottom">BOOK ONE</div>
+      </div>
+      <img id="coverImg" alt="Dystopia: Life After The Machines — Book One cover"
+           onload="this.style.display='block';document.getElementById('coverFallback').style.display='none'"
+           onerror="this.remove()">
     </div>
     <div id="endSub">The hive was only the beginning. Find out how Marcus's war really started &mdash; and where it goes from here.</div>
     <div id="endBtns" style="margin-top:26px;">
@@ -192,6 +200,10 @@ import * as THREE from 'three';
    ============================================================ */
 const CONFIG = {
   BOOK1_URL: 'https://www.amazon.com/dp/B0FPYVJBHK',
+  // Real cover art, served from Amazon's image CDN by ASIN. If it ever
+  // fails to load, the end card falls back to the stylized CSS cover.
+  // Swap for a local file (e.g. 'cover.jpg' committed to the repo) any time.
+  COVER_URL: 'https://m.media-amazon.com/images/P/B0FPYVJBHK.01.LZZZZZZZ.jpg',
   // Marcus's resistance team, from Book One.
   NAMES: { lead:'KARA', ops:'THOMAS', medic:'ELENA' },
 };
@@ -238,6 +250,7 @@ const el = {
   stickBase:$('stickBase'), stickNub:$('stickNub'), fireBtn:$('fireBtn'), plantBtn:$('plantBtn'),
 };
 el.book1.href = CONFIG.BOOK1_URL;
+document.getElementById('coverImg').src = CONFIG.COVER_URL;
 
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 el.startHint.innerHTML = IS_TOUCH
