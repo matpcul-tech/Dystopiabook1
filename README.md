@@ -32,6 +32,7 @@ of the `<script type="module">` in `index.html`:
   three-state AI (idle → alert → attack) with line-of-sight triggers
 - 100 HP with regen after 5s out of combat; checkpoints at segment doors
 - Max 8 simultaneous active drones; all audio synthesized (WebAudio)
+- All textures generated procedurally at load (canvas) — still zero assets
 - Service workers are unregistered on load (caching fix)
 
 Out of scope: squad NPCs, multiplayer, multiple weapons, saves, voice.

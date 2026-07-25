@@ -357,11 +357,14 @@ const AudioSys = (() => {
 const renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.3;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x010603);
-scene.fog = new THREE.FogExp2(0x010603, 0.048);
+scene.fog = new THREE.FogExp2(0x030a06, 0.042);
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 120);
 // Yaw/pitch rig: yawObj carries position + yaw, pitchObj carries pitch + camera.
@@ -369,10 +372,22 @@ const yawObj = new THREE.Object3D();
 const pitchObj = new THREE.Object3D();
 yawObj.add(pitchObj); pitchObj.add(camera); scene.add(yawObj);
 
-scene.add(new THREE.AmbientLight(0x1a4633, 2.0));
-const dirLight = new THREE.DirectionalLight(0x9dffce, 1.3);
-dirLight.position.set(2, 8, 3);
+scene.add(new THREE.HemisphereLight(0x41695a, 0x11150f, 1.6));
+const dirLight = new THREE.DirectionalLight(0xd8ffe8, 0.75);
+dirLight.position.set(3, 10, 4);
 scene.add(dirLight);
+// player headlamp — carries most of the close-range lighting
+const lamp = new THREE.PointLight(0xd4ffe4, 55, 26, 1.7);
+lamp.position.set(0, 0.1, 0);
+yawObj.add(lamp);
+// muzzle flash (intensity pulsed on fire, decays in updateFX)
+const muzzleLight = new THREE.PointLight(0xaaffcc, 0, 10, 2);
+muzzleLight.position.set(.24, -.2, -.9);
+camera.add(muzzleLight);
+// hive core glow
+const coreLight = new THREE.PointLight(0x39ff88, 34, 30, 1.7);
+coreLight.position.set(0, 2.4, -134);
+scene.add(coreLight);
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth/window.innerHeight;
@@ -397,77 +412,219 @@ const PILLARS = [ // [x, z, half-size] — cover in seg2/seg3/core
   [-6,-124,.55],[6,-124,.55],[-6,-134,.55],[6,-134,.55],
 ];
 
-const matWall  = new THREE.MeshToonMaterial({ color:0x0b1712 });
-const matFloor = new THREE.MeshToonMaterial({ color:0x081009 });
+/* ---- procedural textures (canvas, zero image assets) ---- */
+function makeTex(draw, size=512){
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+function grime(g, s, n, dark){
+  for (let i=0;i<n;i++){
+    g.fillStyle = `rgba(${dark?'0,0,0':'160,200,175'},${(Math.random()*.22).toFixed(3)})`;
+    g.fillRect(Math.random()*s, Math.random()*s, Math.random()*4+1, Math.random()*14+2);
+  }
+}
+const wallTex = makeTex((g,s)=>{
+  const grd = g.createLinearGradient(0,0,0,s);
+  grd.addColorStop(0,'#4d5b50'); grd.addColorStop(.5,'#3e4a40'); grd.addColorStop(1,'#333d34');
+  g.fillStyle = grd; g.fillRect(0,0,s,s);
+  // panel seams
+  g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 5;
+  for (let x=0;x<=s;x+=s/2){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s); g.stroke(); }
+  for (let y=0;y<=s;y+=s/2){ g.beginPath(); g.moveTo(0,y); g.lineTo(s,y); g.stroke(); }
+  // panel bevels
+  g.strokeStyle = 'rgba(190,230,205,.09)'; g.lineWidth = 2;
+  for (let x=0;x<s;x+=s/2) for (let y=0;y<s;y+=s/2) g.strokeRect(x+7,y+7,s/2-14,s/2-14);
+  // rivets
+  g.fillStyle = 'rgba(210,235,220,.28)';
+  for (let x=0;x<s;x+=s/2) for (let y=0;y<s;y+=s/2)
+    [[18,18],[s/2-18,18],[18,s/2-18],[s/2-18,s/2-18]].forEach(([dx,dy])=>{
+      g.beginPath(); g.arc(x+dx,y+dy,3.4,0,7); g.fill();
+    });
+  // rust/drip streaks
+  for (let i=0;i<26;i++){
+    const x = Math.random()*s, w = Math.random()*8+2, y0 = Math.random()*s*.5;
+    const d = g.createLinearGradient(0,y0,0,y0+s*.6);
+    d.addColorStop(0,'rgba(20,14,8,.3)'); d.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle = d; g.fillRect(x,y0,w,s*.6);
+  }
+  grime(g,s,900,true); grime(g,s,180,false);
+});
+const floorTex = makeTex((g,s)=>{
+  g.fillStyle = '#39443a'; g.fillRect(0,0,s,s);
+  // deck plates with diagonal tread
+  for (let x=0;x<s;x+=s/2) for (let y=0;y<s;y+=s/2){
+    g.strokeStyle='rgba(0,0,0,.65)'; g.lineWidth=5; g.strokeRect(x+2,y+2,s/2-4,s/2-4);
+    g.strokeStyle='rgba(150,180,160,.07)'; g.lineWidth=3;
+    for (let t=-s/2;t<s/2;t+=22){
+      g.beginPath(); g.moveTo(x+Math.max(0,t), y+Math.max(0,-t));
+      g.lineTo(x+Math.min(s/2,t+s/2), y+Math.min(s/2,s/2-t)); g.stroke();
+    }
+  }
+  // oil stains
+  for (let i=0;i<10;i++){
+    const x=Math.random()*s, y=Math.random()*s, r=Math.random()*50+18;
+    const d=g.createRadialGradient(x,y,2,x,y,r);
+    d.addColorStop(0,'rgba(0,0,0,.4)'); d.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=d; g.beginPath(); g.arc(x,y,r,0,7); g.fill();
+  }
+  grime(g,s,1100,true);
+});
+const ceilTex = makeTex((g,s)=>{
+  g.fillStyle = '#2b332a'; g.fillRect(0,0,s,s);
+  g.strokeStyle='rgba(0,0,0,.6)'; g.lineWidth=4;
+  for (let x=0;x<=s;x+=s/4){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s); g.stroke(); }
+  for (let y=0;y<=s;y+=s/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(s,y); g.stroke(); }
+  // vent slats in some panels
+  g.fillStyle='rgba(0,0,0,.5)';
+  for (let x=0;x<s;x+=s/4) for (let y=0;y<s;y+=s/4)
+    if (Math.random()<.3) for (let v=10;v<s/4-10;v+=10) g.fillRect(x+12,y+v,s/4-24,4);
+  grime(g,s,500,true);
+});
+const crateTex = makeTex((g,s)=>{
+  g.fillStyle = '#414c41'; g.fillRect(0,0,s,s);
+  g.strokeStyle='rgba(0,0,0,.7)'; g.lineWidth=10; g.strokeRect(6,6,s-12,s-12);
+  g.strokeStyle='rgba(170,210,185,.12)'; g.lineWidth=4; g.strokeRect(26,26,s-52,s-52);
+  g.fillStyle='rgba(57,255,136,.16)'; g.fillRect(s*.3,s*.44,s*.4,s*.12);
+  grime(g,s,400,true);
+}, 256);
+
+function surfMat(tex, rx, ry, extra={}){
+  const map = tex.clone(); map.needsUpdate = true; map.repeat.set(rx, ry);
+  return new THREE.MeshStandardMaterial({
+    map, bumpMap: map, bumpScale: .05, roughness: .82, metalness: .5, ...extra });
+}
+
 const matStrip = new THREE.MeshBasicMaterial({ color:0x39ff88 });
-const matEdge  = new THREE.LineBasicMaterial({ color:0x1fca69, transparent:true, opacity:.5 });
-const matDoor  = new THREE.MeshToonMaterial({ color:0x123424, emissive:0x0c3520 });
+const matDoor  = surfMat(wallTex, 1.2, 1.4, { color:0x9fb3a6, metalness:.7 });
 
 const colliders = [];   // {x1,x2,z1,z2, door?}  AABBs for movement + LOS
 const wallMeshes = [];  // meshes used for raycast occlusion / bullet stops
 const doors = [];       // {mesh, collider, open, anim}
 
-function addBox(x1,x2,z1,z2,h,mat,solid=true,edges=true){
+function addBox(x1,x2,z1,z2,h,mat,solid=true){
   const w=x2-x1, d=z2-z1;
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    mat || surfMat(wallTex, Math.max(1, Math.round(Math.max(w,d)/2.6)), Math.max(1, Math.round(h/2.6))));
   m.position.set((x1+x2)/2, h/2, (z1+z2)/2);
   scene.add(m); wallMeshes.push(m);
-  if (edges){
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), matEdge);
-    e.position.copy(m.position); scene.add(e);
-  }
   if (solid) colliders.push({x1,x2,z1,z2});
   return m;
 }
 
 // floor + ceiling (single big slabs)
 {
-  const fl = new THREE.Mesh(new THREE.BoxGeometry(26, .2, 148), matFloor);
+  const fl = new THREE.Mesh(new THREE.BoxGeometry(26, .2, 148), surfMat(floorTex, 9, 50));
   fl.position.set(0,-.1,-69); scene.add(fl); wallMeshes.push(fl);
-  const ce = new THREE.Mesh(new THREE.BoxGeometry(26, .2, 148), matWall);
+  const ce = new THREE.Mesh(new THREE.BoxGeometry(26, .2, 148), surfMat(ceilTex, 7, 40));
   ce.position.set(0, WALL_H+.1, -69); scene.add(ce); wallMeshes.push(ce);
 }
 
 // side walls per room + boundary walls with door gaps
 ROOMS.forEach((r,i)=>{
-  addBox(r.x1-.5, r.x1, r.z1, r.z2, WALL_H, matWall);
-  addBox(r.x2, r.x2+.5, r.z1, r.z2, WALL_H, matWall);
-  if (i===0) addBox(r.x1-.5, r.x2+.5, r.z2, r.z2+.5, WALL_H, matWall);        // back wall
-  if (i===ROOMS.length-1) addBox(r.x1-.5, r.x2+.5, r.z1-.5, r.z1, WALL_H, matWall); // end wall
+  addBox(r.x1-.5, r.x1, r.z1, r.z2, WALL_H, null);
+  addBox(r.x2, r.x2+.5, r.z1, r.z2, WALL_H, null);
+  if (i===0) addBox(r.x1-.5, r.x2+.5, r.z2, r.z2+.5, WALL_H, null);        // back wall
+  if (i===ROOMS.length-1) addBox(r.x1-.5, r.x2+.5, r.z1-.5, r.z1, WALL_H, null); // end wall
   if (i < ROOMS.length-1){
     const nx = ROOMS[i+1];
     const lo = Math.min(r.x1,nx.x1)-.5, hi = Math.max(r.x2,nx.x2)+.5, b = r.z1;
-    addBox(lo, -DOOR_HALF, b-.3, b+.3, WALL_H, matWall);
-    addBox(DOOR_HALF, hi, b-.3, b+.3, WALL_H, matWall);
-    // sliding door panel
-    const dm = new THREE.Mesh(new THREE.BoxGeometry(DOOR_HALF*2, WALL_H, .35), matDoor.clone());
+    addBox(lo, -DOOR_HALF, b-.3, b+.3, WALL_H, null);
+    addBox(DOOR_HALF, hi, b-.3, b+.3, WALL_H, null);
+    // sliding door panel with a lock-status light bar
+    const dm = new THREE.Mesh(new THREE.BoxGeometry(DOOR_HALF*2, WALL_H, .35), matDoor);
     dm.position.set(0, WALL_H/2, b);
     scene.add(dm); wallMeshes.push(dm);
-    const de = new THREE.LineSegments(new THREE.EdgesGeometry(dm.geometry), matEdge);
-    dm.add(de);
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(DOOR_HALF*1.6, .1, .05),
+      new THREE.MeshBasicMaterial({ color:0xff3344 }));
+    lock.position.set(0, 0, .21);
+    dm.add(lock);
     const dc = {x1:-DOOR_HALF, x2:DOOR_HALF, z1:b-.2, z2:b+.2, door:true, active:true};
     colliders.push(dc);
-    doors.push({ mesh:dm, collider:dc, open:false, anim:0, boundaryZ:b, index:i });
+    doors.push({ mesh:dm, lock, collider:dc, open:false, anim:0, boundaryZ:b, index:i });
   }
 });
 
 // pillars
-PILLARS.forEach(([x,z,s])=> addBox(x-s, x+s, z-s, z+s, WALL_H, matWall));
+PILLARS.forEach(([x,z,s])=> addBox(x-s, x+s, z-s, z+s, WALL_H, null));
 
 // emissive light strips along walls (green; pulse red in alarm state)
 const strips = [];
+const fixtureMat = new THREE.MeshStandardMaterial({ color:0x333c30, roughness:.5, metalness:.5 });
 ROOMS.forEach(r=>{
   for (let z = r.z2-3; z > r.z1+1; z -= 6){
-    [r.x1+.06, r.x2-.06].forEach(x=>{
+    [r.x1+.07, r.x2-.07].forEach(x=>{
+      const housing = new THREE.Mesh(new THREE.BoxGeometry(.16, .2, 2.4), fixtureMat);
+      housing.position.set(x, 2.6, z); scene.add(housing);
       const s = new THREE.Mesh(new THREE.BoxGeometry(.1, .12, 2.2), matStrip);
-      s.position.set(x, 2.6, z); scene.add(s); strips.push(s);
+      s.position.set(x + (x<0?.05:-.05), 2.6, z); scene.add(s); strips.push(s);
     });
   }
 });
 
+// structural ribs: wall posts + ceiling beam every 6m
+const ribMat = new THREE.MeshStandardMaterial({ color:0x39423a, roughness:.55, metalness:.5 });
+const unitBox = new THREE.BoxGeometry(1,1,1);
+ROOMS.forEach(r=>{
+  for (let z = r.z2-4; z > r.z1+2; z -= 6){
+    [[r.x1+.14, .32],[r.x2-.14, .32]].forEach(([x,sx])=>{
+      const post = new THREE.Mesh(unitBox, ribMat);
+      post.position.set(x, WALL_H/2, z); post.scale.set(sx, WALL_H, .4);
+      scene.add(post);
+    });
+    const beam = new THREE.Mesh(unitBox, ribMat);
+    beam.position.set((r.x1+r.x2)/2, WALL_H-.16, z);
+    beam.scale.set(r.x2-r.x1, .32, .4);
+    scene.add(beam);
+  }
+});
+
+// conduit pipes running the length of each room
+const pipeGeo = new THREE.CylinderGeometry(.07,.07,1,8);
+const pipeMat = new THREE.MeshStandardMaterial({ color:0x33403a, roughness:.45, metalness:.55 });
+ROOMS.forEach(r=>{
+  const len = r.z2-r.z1, zc = (r.z1+r.z2)/2;
+  [[r.x1+.24,3.4],[r.x1+.24,3.18],[r.x2-.24,3.3]].forEach(([x,y])=>{
+    const p = new THREE.Mesh(pipeGeo, pipeMat);
+    p.rotation.x = Math.PI/2;
+    p.position.set(x, y, zc); p.scale.set(1, len, 1);
+    scene.add(p);
+  });
+});
+
+// scattered supply crates (solid — they block movement, shots and sight lines)
+const crateMat = surfMat(crateTex, 1, 1, { metalness:.55 });
+[[-2.2,-14,.8,.35],[2.4,-31,.65,1.1],[-3.5,-48,.9,.6],[3.8,-64,.75,.2],
+ [-2.8,-86,.8,.4],[2.7,-108,.9,.25],[-7.5,-122,1.0,.3],[7.4,-136.5,.85,.5]]
+.forEach(([x,z,s,rot])=>{
+  const m = new THREE.Mesh(unitBox, crateMat);
+  m.scale.set(s,s,s); m.position.set(x, s/2, z); m.rotation.y = rot;
+  scene.add(m); wallMeshes.push(m);
+  colliders.push({x1:x-s*.72, x2:x+s*.72, z1:z-s*.72, z2:z+s*.72});
+});
+
+// dust motes hanging in the air
+{
+  const n = 260, pos = new Float32Array(n*3);
+  for (let i=0;i<n;i++){
+    pos[i*3] = (Math.random()-.5)*18;
+    pos[i*3+1] = .2 + Math.random()*3.4;
+    pos[i*3+2] = 3 - Math.random()*145;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({
+    color:0x7dc79b, size:.035, transparent:true, opacity:.45, depthWrite:false })));
+}
+
 // hive core object
 const coreGroup = new THREE.Group();
-const coreMat = new THREE.MeshToonMaterial({ color:0x123, emissive:0x39ff88, emissiveIntensity:.9 });
+const coreMat = new THREE.MeshStandardMaterial({ color:0x0c1810, emissive:0x39ff88,
+  emissiveIntensity:.9, roughness:.3, metalness:.6 });
 const coreMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), coreMat);
 coreMesh.position.y = 2;
 const coreWire = new THREE.LineSegments(new THREE.EdgesGeometry(coreMesh.geometry),
@@ -480,9 +637,10 @@ const CORE_POS = new THREE.Vector3(0, 1.6, -134);
 
 // pickup rifle on floor in start room
 const rifleFloor = new THREE.Group();
+const gunMetal = new THREE.MeshStandardMaterial({ color:0x46524a, roughness:.38, metalness:.55 });
+const gunDark  = new THREE.MeshStandardMaterial({ color:0x252c26, roughness:.5, metalness:.5 });
 {
-  const body = new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.9),
-    new THREE.MeshToonMaterial({ color:0x1a2a20, emissive:0x113322 }));
+  const body = new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.9), gunMetal);
   const glow = new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.5), matStrip);
   glow.position.y = .1;
   rifleFloor.add(body, glow);
@@ -493,14 +651,17 @@ const rifleFloor = new THREE.Group();
 // view-model rifle (attached to camera after pickup)
 const viewRifle = new THREE.Group();
 {
-  const body = new THREE.Mesh(new THREE.BoxGeometry(.09,.12,.55),
-    new THREE.MeshToonMaterial({ color:0x16241c, emissive:0x0a1a10 }));
-  const barrel = new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.35),
-    new THREE.MeshToonMaterial({ color:0x0d1712 }));
-  barrel.position.set(0,.03,-.4);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(.09,.12,.55), gunMetal);
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.38), gunDark);
+  barrel.position.set(0,.03,-.42);
+  const shroud = new THREE.Mesh(new THREE.BoxGeometry(.07,.06,.22), gunDark);
+  shroud.position.set(0,.02,-.28);
   const glow = new THREE.Mesh(new THREE.BoxGeometry(.02,.02,.4), matStrip);
   glow.position.set(0,.075,-.1);
-  viewRifle.add(body, barrel, glow);
+  const cell = new THREE.Mesh(new THREE.BoxGeometry(.05,.04,.1),
+    new THREE.MeshBasicMaterial({ color:0x2bff7f }));
+  cell.position.set(0,-.05,.12);
+  viewRifle.add(body, barrel, shroud, glow, cell);
   viewRifle.position.set(.24,-.22,-.5);
   viewRifle.visible = false;
   camera.add(viewRifle);
@@ -516,28 +677,86 @@ function spawnTracer(from, to){
   tracers.push({ line, life:.07 });
 }
 
+// impact sparks
+const sparkMat = new THREE.PointsMaterial({ color:0xbfffd2, size:.06,
+  transparent:true, opacity:1, depthWrite:false, blending:THREE.AdditiveBlending });
+const sparks = [];
+function spawnSparks(at, n=10, color){
+  const pos = new Float32Array(n*3), vel = [];
+  for (let i=0;i<n;i++){
+    pos[i*3]=at.x; pos[i*3+1]=at.y; pos[i*3+2]=at.z;
+    vel.push(new THREE.Vector3((Math.random()-.5)*6,(Math.random()-.2)*5,(Math.random()-.5)*6));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = sparkMat.clone(); if (color) m.color.setHex(color);
+  const pts = new THREE.Points(g, m);
+  scene.add(pts);
+  sparks.push({ pts, vel, life:.35 });
+}
+
+// soft blob shadow (grounds the drones)
+const shadowTex = makeTex((g,s)=>{
+  const d = g.createRadialGradient(s/2,s/2,4,s/2,s/2,s/2);
+  d.addColorStop(0,'rgba(0,0,0,.85)'); d.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=d; g.fillRect(0,0,s,s);
+}, 128);
+const shadowMat = new THREE.MeshBasicMaterial({ map:shadowTex, transparent:true,
+  opacity:.6, depthWrite:false });
+const shadowGeo = new THREE.PlaneGeometry(1,1);
+
 /* ============================================================
    Drones
    ============================================================ */
-const crawlerGeo = new THREE.IcosahedronGeometry(.45, 0);
-const sentryGeo  = new THREE.OctahedronGeometry(.55, 0);
-const droneMatIdle  = new THREE.MeshToonMaterial({ color:0x0e1c14, emissive:0x1fca69, emissiveIntensity:.8 });
-const droneMatAlert = new THREE.MeshToonMaterial({ color:0x1c0e0e, emissive:0xff3344, emissiveIntensity:1 });
-const droneEdgeIdle  = new THREE.LineBasicMaterial({ color:0x39ff88 });
-const droneEdgeAlert = new THREE.LineBasicMaterial({ color:0xff5566 });
-const crawlerEdges = new THREE.EdgesGeometry(crawlerGeo);
-const sentryEdges  = new THREE.EdgesGeometry(sentryGeo);
+const EYE_GREEN = 0x2bff7f, EYE_RED = 0xff2b3c;
+const droneMetal = new THREE.MeshStandardMaterial({ color:0x59685c, roughness:.42, metalness:.55 });
+const droneDark  = new THREE.MeshStandardMaterial({ color:0x2b332c, roughness:.55, metalness:.5 });
+const crawlerBodyGeo = new THREE.IcosahedronGeometry(.32, 1);
+const legGeo   = new THREE.ConeGeometry(.05, .55, 5);
+const eyeGeoC  = new THREE.SphereGeometry(.09, 10, 8);
+const sentryBodyGeo = new THREE.SphereGeometry(.34, 14, 12);
+const ringGeo  = new THREE.TorusGeometry(.5, .05, 6, 22);
+const eyeGeoS  = new THREE.SphereGeometry(.14, 12, 10);
+const finGeo   = new THREE.BoxGeometry(.05, .3, .18);
 
 const drones = [];
 let droneSeq = 0;
 
 function makeDrone(kind, x, z, segment){
   const isCrawler = kind === 'crawler';
-  const mesh = new THREE.Mesh(isCrawler ? crawlerGeo : sentryGeo, droneMatIdle);
-  const edge = new THREE.LineSegments(isCrawler ? crawlerEdges : sentryEdges, droneEdgeIdle);
-  mesh.add(edge);
+  const mesh = new THREE.Group();
+  const eyeMat = new THREE.MeshBasicMaterial({ color: EYE_GREEN });
+  let ring = null;
+  if (isCrawler){
+    const body = new THREE.Mesh(crawlerBodyGeo, droneMetal);
+    mesh.add(body);
+    for (let i=0;i<6;i++){
+      const a = i/6*Math.PI*2;
+      const leg = new THREE.Mesh(legGeo, droneDark);
+      leg.position.set(Math.cos(a)*.3, -.18, Math.sin(a)*.3);
+      leg.rotation.set(Math.sin(a)*.85, 0, -Math.cos(a)*.85);
+      mesh.add(leg);
+    }
+    const eye = new THREE.Mesh(eyeGeoC, eyeMat);
+    eye.position.set(0, .04, .3);
+    mesh.add(eye);
+  } else {
+    const body = new THREE.Mesh(sentryBodyGeo, droneMetal);
+    ring = new THREE.Mesh(ringGeo, droneDark);
+    ring.rotation.x = Math.PI/2;
+    const eye = new THREE.Mesh(eyeGeoS, eyeMat);
+    eye.position.set(0, 0, .3);
+    const fin = new THREE.Mesh(finGeo, droneDark);
+    fin.position.set(0, .38, -.1);
+    mesh.add(body, ring, eye, fin);
+  }
+  // blob shadow, child of the group but pinned to the floor each frame
+  const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+  shadow.rotation.x = -Math.PI/2;
+  shadow.scale.setScalar(isCrawler ? 1.1 : 1.4);
+  mesh.add(shadow);
   const d = {
-    id: droneSeq++, kind, segment, mesh, edge,
+    id: droneSeq++, kind, segment, mesh, eyeMat, ring, shadow,
     home: new THREE.Vector3(x, isCrawler ? .5 : 1.7, z),
     hp: isCrawler ? 30 : 60, maxHp: isCrawler ? 30 : 60,
     state: 'idle',            // idle > alert > attack
@@ -828,6 +1047,8 @@ function tryFire(dt){
   const hitPoint = origin.clone().addScaledVector(_rayDir, bestT);
   viewRifle.getWorldPosition(_muzzle);
   spawnTracer(_muzzle.clone().addScaledVector(_rayDir, .4), hitPoint);
+  muzzleLight.intensity = 26;
+  spawnSparks(hitPoint, bestDrone ? 12 : 6);
 
   if (bestDrone){
     AudioSys.hitConfirm();
@@ -857,16 +1078,14 @@ function damageDrone(d, dmg){
   if (d.state === 'idle') setDroneState(d, 'alert');
   if (d.hp <= 0 && d.alive){
     d.alive = false; d.deathT = .4;
+    spawnSparks(d.mesh.position, 16, 0xffcc88);
     AudioSys.droneDie();
   }
 }
 function setDroneState(d, s){
   if (d.state === s) return;
   d.state = s; d.stateT = 0;
-  const alert = s !== 'idle';
-  if (alert && d.kind === 'sentry' && !d.alertMat) d.alertMat = droneMatAlert.clone();
-  d.mesh.material = alert ? (d.alertMat || droneMatAlert) : droneMatIdle;
-  d.edge.material = alert ? droneEdgeAlert : droneEdgeIdle;
+  d.eyeMat.color.setHex(s === 'idle' ? EYE_GREEN : EYE_RED);
   if (s === 'alert') AudioSys.alert();
 }
 
@@ -902,6 +1121,8 @@ function updateDrones(dt){
     if (dist > 46) continue;              // far: fully dormant
     if (++updated > MAX_ACTIVE + 4) continue; // hard update cap safety
     d.stateT += dt;
+    d.shadow.position.y = .03 - m.y;      // pin blob shadow to the floor
+    if (d.ring) d.ring.rotation.z += dt * (d.state === 'idle' ? .8 : 3);
 
     // LOS check, throttled per-drone
     d.losT -= dt;
@@ -945,16 +1166,16 @@ function updateDrones(dt){
       } else {
         // sentry: telegraphed shot cycle
         m.y = d.home.y + Math.sin(G.time*3 + d.id)*.1;
-        if (!seesPlayer){ d.chargeT = 0; d.mesh.material.emissiveIntensity = 1; continue; }
+        if (!seesPlayer){ d.chargeT = 0; d.eyeMat.color.setHex(EYE_RED); continue; }
         d.chargeT += dt;
         if (d.chargeT > 1.6){
-          // telegraph: glow ramps for final .7s
+          // telegraph: eye flares white-hot for the final .7s
           const w = d.chargeT - 1.6;
           if (w < .7){
             if (w < dt) AudioSys.sentryCharge();
-            d.mesh.material.emissiveIntensity = 1 + w*3;
+            d.eyeMat.color.setRGB(1, .17 + w*1.15, .24 + w*1.05);
           } else {
-            d.mesh.material.emissiveIntensity = 1;
+            d.eyeMat.color.setHex(EYE_RED);
             d.chargeT = 0;
             fireProjectile(m.clone(), new THREE.Vector3(px, PLAYER_EYE - .2, pz));
           }
@@ -996,6 +1217,7 @@ function updateDoors(dt){
       const canOpen = dr.index === 0 ? G.hasRifle : segmentCleared(dr.index);
       if (canOpen){
         dr.open = true;
+        dr.lock.material.color.setHex(0x39ff88);
         AudioSys.doorOpen();
         if (dr.index === 1) radio('seg1_clear');
         if (dr.index === 2) radio('seg2_clear');
@@ -1236,15 +1458,36 @@ function updateFX(dt){
     t.line.material.opacity = Math.max(0, t.life/.07);
     if (t.life <= 0){ scene.remove(t.line); t.line.geometry.dispose(); tracers.splice(i,1); }
   }
+  // impact sparks: fly out, fall, fade
+  for (let i = sparks.length-1; i >= 0; i--){
+    const s = sparks[i];
+    s.life -= dt;
+    const p = s.pts.geometry.attributes.position;
+    for (let j=0;j<s.vel.length;j++){
+      s.vel[j].y -= 14*dt;
+      p.array[j*3]   += s.vel[j].x*dt;
+      p.array[j*3+1] += s.vel[j].y*dt;
+      p.array[j*3+2] += s.vel[j].z*dt;
+    }
+    p.needsUpdate = true;
+    s.pts.material.opacity = Math.max(0, s.life/.35);
+    if (s.life <= 0){ scene.remove(s.pts); s.pts.geometry.dispose(); sparks.splice(i,1); }
+  }
+  // muzzle flash decay
+  if (muzzleLight.intensity > 0)
+    muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*300);
   // core pulse
   coreGroup.rotation.y += dt * .4;
   coreMat.emissiveIntensity = .9 + Math.sin(G.time*3)*.3;
-  // alarm strips
+  coreLight.intensity = 30 + Math.sin(G.time*3)*10;
+  // alarm strips + core light shift red
   if (G.alarm && !G.planted){
     const pulse = (Math.sin(G.time*6) + 1) / 2;
     matStrip.color.setRGB(1, .1 + pulse*.2, .2);
+    coreLight.color.setRGB(1, .25 + pulse*.3, .3);
   } else if (G.planted){
     matStrip.color.setHex(0xffd23f);
+    coreLight.color.setHex(0xffd23f);
   }
 }
 
