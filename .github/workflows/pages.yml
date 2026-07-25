@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir /tmp/site
-          cp index.html /tmp/site/
+          cp index.html cover.jpg /tmp/site/
           touch /tmp/site/.nojekyll
           cd /tmp/site
           git init -b gh-pages

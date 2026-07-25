@@ -200,10 +200,9 @@ import * as THREE from 'three';
    ============================================================ */
 const CONFIG = {
   BOOK1_URL: 'https://www.amazon.com/dp/B0FPYVJBHK',
-  // Real cover art, served from Amazon's image CDN by ASIN. If it ever
-  // fails to load, the end card falls back to the stylized CSS cover.
-  // Swap for a local file (e.g. 'cover.jpg' committed to the repo) any time.
-  COVER_URL: 'https://m.media-amazon.com/images/P/B0FPYVJBHK.01.LZZZZZZZ.jpg',
+  // Real cover art, self-hosted alongside the game. If it ever fails to
+  // load, the end card falls back to the stylized CSS cover.
+  COVER_URL: 'cover.jpg',
   // Marcus's resistance team, from Book One.
   NAMES: { lead:'KARA', ops:'THOMAS', medic:'ELENA' },
 };
