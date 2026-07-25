@@ -192,15 +192,15 @@ import * as THREE from 'three';
    ============================================================ */
 const CONFIG = {
   BOOK1_URL: 'https://www.amazon.com/dp/B0FPYVJBHK',
-  // TODO(author): rename to match the team in the books.
-  NAMES: { lead:'REESE', ops:'KIRA', medic:'DOC' },
+  // Marcus's resistance team, from Book One.
+  NAMES: { lead:'KARA', ops:'THOMAS', medic:'ELENA' },
 };
 
 const N = CONFIG.NAMES;
 // Radio chatter: the story channel. Keyed triggers fired by game events / zones.
 const RADIO = {
-  pickup:      [{who:N.ops,  text:"There you are. Thought we lost you, Marcus."},
-                {who:N.lead, text:"The hive woke up the second you did. Crawlers inbound — light 'em up."}],
+  pickup:      [{who:N.lead, text:"There you are. Thought we lost you, Marcus."},
+                {who:N.ops,  text:"The hive woke up the second you did. Crawlers inbound — light 'em up."}],
   seg1_mid:    [{who:N.ops,  text:"Pulse rifle's synced to your rig. Infinite cell. Make it count."}],
   seg1_clear:  [{who:N.lead, text:"Segment clear. Door's cycling — move up."}],
   seg2_enter:  [{who:N.medic,text:"Vitals holding. Take a hit, find cover — you'll knit."}],

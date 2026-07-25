@@ -19,8 +19,9 @@ Everything an author should tweak lives in the `CONFIG` block at the top
 of the `<script type="module">` in `index.html`:
 
 - `BOOK1_URL` — the Kindle store URL for Book 1.
-- `NAMES` — the radio team callsigns (`REESE`, `KIRA`, `DOC` are
-  placeholders). Rename to match the team in the books.
+- `NAMES` — the radio team voices, matched to Book One's resistance cell:
+  `KARA` (leads the cell in the field), `THOMAS` (tactical — tracks machine
+  patrols), `ELENA` (comms — monitors data streams and Marcus's vitals).
 - `RADIO` — all 14 chatter lines, keyed by trigger.
 - `INTRO_LINES` — the awakening sequence text.
 
