@@ -1,9 +1,18 @@
-# LATM: Hive Infiltration (v1)
+# LATM: Hive Infiltration
 
-Free playable episode set in the world of **Life After The Machines**.
-Marcus wakes up inside a machine hive, fights through three corridor
-segments, and plants a charge at the hive core. 5–7 minutes, then a
-funnel to Book 1.
+Free playable episodes set in the world of **Life After The Machines**,
+funneling players to Book 1.
+
+- **Chapter 1 — The Hive**: Marcus wakes inside a machine hive, fights
+  through three corridor segments, and plants a charge at the core.
+- **Chapter 2 — The Processing Center** (`#ch2`): armed from the start,
+  Marcus crosses the cylinder halls from the book — including cylinder
+  A-113, ANGELA M. — and pulls the ledger of taken names while wardens
+  (heavy sentry frames) defend the control room.
+
+Chapters are pure data objects in `CHAPTERS` inside `index.html`
+(rooms, drones, radio script, palette, props); the engine builds
+whichever the URL hash selects. Adding a chapter = adding a data block.
 
 ## Play
 

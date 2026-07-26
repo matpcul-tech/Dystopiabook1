@@ -208,31 +208,176 @@ const CONFIG = {
 };
 
 const N = CONFIG.NAMES;
-// Radio chatter: the story channel. Keyed triggers fired by game events / zones.
-const RADIO = {
-  pickup:      [{who:N.lead, text:"There you are. Thought we lost you, Marcus."},
-                {who:N.ops,  text:"The hive woke up the second you did. Crawlers inbound — light 'em up."}],
-  seg1_mid:    [{who:N.ops,  text:"Pulse rifle's synced to your rig. Infinite cell. Make it count."}],
-  seg1_clear:  [{who:N.lead, text:"Segment clear. Door's cycling — move up."}],
-  seg2_enter:  [{who:N.medic,text:"Vitals holding. Take a hit, find cover — you'll knit."}],
-  seg2_mid:    [{who:N.ops,  text:"Sentries ahead. Watch the red flare — that's the wind-up."}],
-  seg2_clear:  [{who:N.lead, text:"Clean. You're better at this than you have any right to be."}],
-  seg3_enter:  [{who:N.ops,  text:"Signal's thick in there. You're right on top of the core."}],
-  seg3_mid:    [{who:N.medic,text:"Heart rate's spiking. Breathe, Marcus."}],
-  seg3_clear:  [{who:N.lead, text:"Last door. Whatever's behind it already knows you're coming."}],
-  core_enter:  [{who:N.ops,  text:"That's it — the hive core. Plant the charge, I'll cook the uplink."}],
-  alarm:       [{who:N.lead, text:"Alarm state! Hold them off until it arms!"}],
-  planted:     [{who:N.ops,  text:"Charge armed! Extraction point, NOW!"}],
-  extract:     [{who:N.lead, text:"We've got you, Marcus. We've got you."}],
+
+/* ============================================================
+   CHAPTERS — each chapter is pure data; the engine below builds
+   whichever one the URL hash selects (default ch1, '#ch2' etc.)
+   ============================================================ */
+const CHAPTERS = {
+  ch1: {
+    id: 'ch1',
+    subtitle: 'CHAPTER ONE — THE HIVE',
+    switchLabel: 'PLAY CHAPTER 2: THE PROCESSING CENTER ▸',
+    switchHash: '#ch2',
+    next: true,
+    startArmed: false,
+    palette: {
+      wallA:'#4d5b50', wallB:'#3e4a40', wallC:'#333d34',
+      floor:'#39443a', ceil:'#2b332a', crate:'#414c41',
+      crateMark:'rgba(57,255,136,.16)',
+      strip:0x39ff88, fog:0x030a06, bg:0x010603,
+      hemi:0x41695a, lamp:0xd4ffe4, dust:0x7dc79b, coreLight:0x39ff88,
+    },
+    rooms: [
+      { x1:-3,  x2:3,  z1:-10,  z2:2    },
+      { x1:-4,  x2:4,  z1:-42,  z2:-10  },
+      { x1:-5,  x2:5,  z1:-78,  z2:-42  },
+      { x1:-4,  x2:4,  z1:-116, z2:-78  },
+      { x1:-10, x2:10, z1:-140, z2:-116 },
+    ],
+    pillars: [
+      [-2.6,-54,.45],[2.6,-58,.45],[-2.6,-66,.45],[2.6,-70,.45],
+      [-2.2,-88,.45],[2.2,-92,.45],[-2.2,-102,.45],[2.2,-106,.45],
+      [-6,-124,.55],[6,-124,.55],[-6,-134,.55],[6,-134,.55],
+    ],
+    crates: [
+      [-2.2,-14,.8,.35],[2.4,-31,.65,1.1],[-3.5,-48,.9,.6],[3.8,-64,.75,.2],
+      [-2.8,-86,.8,.4],[2.7,-108,.9,.25],[-7.5,-122,1.0,.3],[7.4,-136.5,.85,.5],
+    ],
+    cylinders: [],
+    drones: [
+      ['crawler',   0, -18, 1], ['crawler', -2, -26, 1], ['crawler',  2, -34, 1],
+      ['crawler',  -3, -50, 2], ['crawler',  3, -56, 2], ['crawler',  0, -72, 2],
+      ['sentry', -3.5, -62, 2], ['sentry', 3.5, -74, 2],
+      ['crawler',  -2, -84, 3], ['crawler',  2, -90, 3], ['crawler', 0, -97, 3], ['crawler', -2, -110, 3],
+      ['sentry',  2.5, -100, 3], ['sentry', -2.5, -107, 3], ['sentry', 0, -113, 3],
+      ['sentry',  -6, -128, 4], ['sentry', 6, -128, 4],
+    ],
+    waveSpawns: [[-8,-118],[8,-118],[-8,-138],[8,-138]],
+    waveTotal: 12,
+    zones: [ {z:-26,key:'seg1_mid'}, {z:-60,key:'seg2_mid'}, {z:-97,key:'seg3_mid'} ],
+    objectivePos: [0, 1.6, -134],
+    obj: {
+      find:'FIND YOUR WEAPON', advance:'ADVANCE INTO THE HIVE',
+      segs:['CLEAR HIVE SEGMENT 1 / 3','CLEAR HIVE SEGMENT 2 / 3','CLEAR HIVE SEGMENT 3 / 3'],
+      final:'PLANT THE CHARGE AT THE CORE', done:'GET CLEAR',
+      armLabel:'ARMING CHARGE', btn:'PLANT',
+      promptKey:'HOLD [E] TO ARM THE CHARGE', promptTouch:'HOLD PLANT TO ARM THE CHARGE',
+    },
+    introLines: [
+      "...",
+      "Cold. Metal. A floor.",
+      "—arcus. Marcus. MARCUS.",
+      "\"His vitals just came back online. He's alive.\"",
+      "\"Get up, soldier. You're inside the hive.\"",
+    ],
+    radio: {
+      pickup:      [{who:N.lead, text:"There you are. Thought we lost you, Marcus."},
+                    {who:N.ops,  text:"The hive woke up the second you did. Crawlers inbound — light 'em up."}],
+      seg1_mid:    [{who:N.ops,  text:"Pulse rifle's synced to your rig. Infinite cell. Make it count."}],
+      seg1_clear:  [{who:N.lead, text:"Segment clear. Door's cycling — move up."}],
+      seg2_enter:  [{who:N.medic,text:"Vitals holding. Take a hit, find cover — you'll knit."}],
+      seg2_mid:    [{who:N.ops,  text:"Sentries ahead. Watch the red flare — that's the wind-up."}],
+      seg2_clear:  [{who:N.lead, text:"Clean. You're better at this than you have any right to be."}],
+      seg3_enter:  [{who:N.ops,  text:"Signal's thick in there. You're right on top of the core."}],
+      seg3_mid:    [{who:N.medic,text:"Heart rate's spiking. Breathe, Marcus."}],
+      seg3_clear:  [{who:N.lead, text:"Last door. Whatever's behind it already knows you're coming."}],
+      core_enter:  [{who:N.ops,  text:"That's it — the hive core. Plant the charge, I'll cook the uplink."}],
+      alarm:       [{who:N.lead, text:"Alarm state! Hold them off until it arms!"}],
+      planted:     [{who:N.ops,  text:"Charge armed! Extraction point, NOW!"}],
+      extract:     [{who:N.lead, text:"We've got you, Marcus. We've got you."}],
+    },
+    endTitle: "MARCUS'S STORY CONTINUES.",
+    endSub: "The hive was only the beginning. Find out how Marcus's war really started — and where it goes from here.",
+  },
+
+  ch2: {
+    id: 'ch2',
+    subtitle: 'CHAPTER TWO — THE PROCESSING CENTER',
+    switchLabel: '◂ BACK TO CHAPTER 1: THE HIVE',
+    switchHash: '#ch1',
+    next: false,
+    startArmed: true,
+    palette: {
+      wallA:'#4c565c', wallB:'#3d474d', wallC:'#323b40',
+      floor:'#3a4347', ceil:'#2c3438', crate:'#41494c',
+      crateMark:'rgba(159,232,255,.18)',
+      strip:0xaee9ff, fog:0x04090c, bg:0x020608,
+      hemi:0x4a6570, lamp:0xdff4ff, dust:0x9fc9d8, coreLight:0x9fe8ff,
+    },
+    rooms: [
+      { x1:-3, x2:3, z1:-10,  z2:2    },   // insertion vent
+      { x1:-6, x2:6, z1:-40,  z2:-10  },   // cylinder hall A
+      { x1:-3, x2:3, z1:-70,  z2:-40  },   // transfer corridor
+      { x1:-7, x2:7, z1:-104, z2:-70  },   // cylinder hall B
+      { x1:-9, x2:9, z1:-126, z2:-104 },   // control room
+    ],
+    pillars: [
+      [-2,-48,.45],[2,-56,.45],[-2,-64,.45],
+      [-3.5,-78,.5],[3.5,-84,.5],[-3.5,-92,.5],[3.5,-98,.5],
+      [-5,-110,.55],[5,-110,.55],[-5,-120,.55],[5,-120,.55],
+    ],
+    crates: [
+      [-4.5,-13,.8,.3],[3.8,-27,.7,.9],[2.2,-45,.8,.5],[-2.3,-61,.75,.2],
+      [1.9,-76.5,.9,.4],[-2.4,-96,.8,.7],[7.6,-107,.9,.2],[-7.4,-123,.85,.6],
+    ],
+    // [x, z, isAngela] — the glass processing cylinders from Book One
+    cylinders: [
+      [-4.8,-14],[4.8,-14],[-4.8,-20],[4.8,-20],[-4.8,-26],[4.8,-26],
+      [-4.8,-32],[4.8,-32,true],[-4.8,-38],[4.8,-38],
+      [-5.6,-74],[5.6,-74],[-5.6,-80],[5.6,-80],[-5.6,-86],[5.6,-86],
+      [-5.6,-92],[5.6,-92],[-5.6,-98],[5.6,-98],
+    ],
+    drones: [
+      ['crawler', -4, -16, 1], ['crawler', 4, -24, 1], ['crawler', 0, -33, 1], ['sentry', 0, -37, 1],
+      ['crawler', -2, -46, 2], ['crawler', 2, -54, 2], ['sentry', 0, -59, 2], ['crawler', 0, -65, 2],
+      ['crawler', -3, -74, 3], ['crawler', 3, -80, 3], ['sentry', -4, -88, 3], ['warden', 0, -90, 3],
+      ['sentry', 4, -94, 3], ['warden', 0, -100, 3],
+      ['warden', 0, -112, 4],
+    ],
+    waveSpawns: [[-7,-106],[7,-106],[-7,-124],[7,-124]],
+    waveTotal: 12,
+    zones: [ {z:-22,key:'seg1_mid'}, {z:-31,key:'angela'}, {z:-52,key:'seg2_mid'}, {z:-88,key:'seg3_mid'} ],
+    objectivePos: [0, 1.4, -120],
+    obj: {
+      find:'FIND YOUR WEAPON', advance:'REACH THE CYLINDER HALLS',
+      segs:['CROSS CYLINDER HALL A','CLEAR THE TRANSFER CORRIDOR','CROSS CYLINDER HALL B'],
+      final:'PULL THE LEDGER AT THE CONSOLE', done:'GET CLEAR',
+      armLabel:'COPYING LEDGER', btn:'PULL',
+      promptKey:'HOLD [E] TO PULL THE LEDGER', promptTouch:'HOLD PULL TO COPY THE LEDGER',
+    },
+    introLines: [
+      "...",
+      "Vent shaft. Processing Center Delta.",
+      "\"Thousands of cylinders. Thousands of names.\"",
+      "\"Get in, pull the ledger, get out.\"",
+      "\"And Marcus — don't stop to look. It doesn't help them.\"",
+    ],
+    radio: {
+      pickup:      [{who:N.lead, text:"You're in. Keep your breathing even — the air system listens."},
+                    {who:N.ops,  text:"Patrols are thin on this level. That's exactly what worries me."}],
+      seg1_mid:    [{who:N.medic,text:"I'm reading active cylinders. Thousands of them, Marcus."}],
+      angela:      [{who:N.medic,text:"That row — cylinder A-113. ANGELA M. ...They keep the names. They label everyone."}],
+      seg1_clear:  [{who:N.ops,  text:"Section clear. Transfer hall is cycling open."}],
+      seg2_enter:  [{who:N.lead, text:"Whatever you see in here, keep moving. You can't carry all of it today."}],
+      seg2_mid:    [{who:N.medic,text:"Power draw ahead — heavier frames. Wardens."}],
+      seg2_clear:  [{who:N.ops,  text:"Clear. Hall B next — use the columns, a warden's wind-up is fast."}],
+      seg3_enter:  [{who:N.medic,text:"Vitals spiking. Breathe. You free them by finishing this."}],
+      seg3_mid:    [{who:N.lead, text:"The ledger is every name they've ever taken. We're taking it back."}],
+      seg3_clear:  [{who:N.ops,  text:"Control room's open. This is it."}],
+      core_enter:  [{who:N.medic,text:"Console's live. Pull the ledger — full copy. I'll broadcast every name we save."}],
+      alarm:       [{who:N.lead, text:"They know you're there! Hold the room!"}],
+      planted:     [{who:N.medic,text:"Copy complete. Every name is ours. GO!"}],
+      extract:     [{who:N.lead, text:"Extraction's hot — run! ...We've got you, Marcus. Again."}],
+    },
+    endTitle: "EVERY NAME REMEMBERED.",
+    endSub: "The ledger is free — but the machines keep more than names. Read how Marcus's war began, and where it has to go.",
+  },
 };
 
-const INTRO_LINES = [
-  "...",
-  "Cold. Metal. A floor.",
-  "—arcus. Marcus. MARCUS.",
-  "\"His vitals just came back online. He's alive.\"",
-  "\"Get up, soldier. You're inside the hive.\"",
-];
+const CH = CHAPTERS[(location.hash || '').replace('#','')] || CHAPTERS.ch1;
+const RADIO = CH.radio;
+const INTRO_LINES = CH.introLines;
 
 /* ============================================================
    DOM refs & tiny helpers
@@ -250,6 +395,26 @@ const el = {
 };
 el.book1.href = CONFIG.BOOK1_URL;
 document.getElementById('coverImg').src = CONFIG.COVER_URL;
+document.querySelector('#startScreen h2').textContent = CH.subtitle;
+document.getElementById('plantLabel').textContent = CH.obj.armLabel;
+document.getElementById('plantBtn').textContent = CH.obj.btn;
+document.getElementById('endTitle').textContent = CH.endTitle;
+document.getElementById('endSub').textContent = CH.endSub;
+{
+  const sw = document.createElement('button');
+  sw.className = 'btn';
+  sw.style.cssText = 'margin-top:18px;font-size:11px;padding:10px 18px;opacity:.85';
+  sw.textContent = CH.switchLabel;
+  sw.onclick = () => { location.hash = CH.switchHash; location.reload(); };
+  document.getElementById('startScreen').appendChild(sw);
+  if (CH.next){
+    const nx = document.createElement('button');
+    nx.className = 'btn';
+    nx.textContent = 'NEXT CHAPTER \u25B8';
+    nx.onclick = () => { location.hash = '#ch2'; location.reload(); };
+    document.getElementById('endBtns').appendChild(nx);
+  }
+}
 
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 el.startHint.innerHTML = IS_TOUCH
@@ -362,8 +527,8 @@ renderer.toneMappingExposure = 1.3;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x010603);
-scene.fog = new THREE.FogExp2(0x030a06, 0.042);
+scene.background = new THREE.Color(CH.palette.bg);
+scene.fog = new THREE.FogExp2(CH.palette.fog, 0.042);
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 120);
 // Yaw/pitch rig: yawObj carries position + yaw, pitchObj carries pitch + camera.
@@ -371,12 +536,12 @@ const yawObj = new THREE.Object3D();
 const pitchObj = new THREE.Object3D();
 yawObj.add(pitchObj); pitchObj.add(camera); scene.add(yawObj);
 
-scene.add(new THREE.HemisphereLight(0x41695a, 0x11150f, 1.6));
+scene.add(new THREE.HemisphereLight(CH.palette.hemi, 0x11150f, 1.6));
 const dirLight = new THREE.DirectionalLight(0xd8ffe8, 0.75);
 dirLight.position.set(3, 10, 4);
 scene.add(dirLight);
 // player headlamp — carries most of the close-range lighting
-const lamp = new THREE.PointLight(0xd4ffe4, 55, 26, 1.7);
+const lamp = new THREE.PointLight(CH.palette.lamp, 55, 26, 1.7);
 lamp.position.set(0, 0.1, 0);
 yawObj.add(lamp);
 // muzzle flash (intensity pulsed on fire, decays in updateFX)
@@ -384,8 +549,8 @@ const muzzleLight = new THREE.PointLight(0xaaffcc, 0, 10, 2);
 muzzleLight.position.set(.24, -.2, -.9);
 camera.add(muzzleLight);
 // hive core glow
-const coreLight = new THREE.PointLight(0x39ff88, 34, 30, 1.7);
-coreLight.position.set(0, 2.4, -134);
+const coreLight = new THREE.PointLight(CH.palette.coreLight, 34, 30, 1.7);
+coreLight.position.set(CH.objectivePos[0], CH.objectivePos[1] + 1, CH.objectivePos[2]);
 scene.add(coreLight);
 
 window.addEventListener('resize', () => {
@@ -398,18 +563,8 @@ window.addEventListener('resize', () => {
    Level: 5 rooms (start, 3 segments, core) along -Z
    ============================================================ */
 const WALL_H = 4, DOOR_HALF = 1.6;
-const ROOMS = [
-  { x1:-3,  x2:3,  z1:-10,  z2:2    }, // 0 start
-  { x1:-4,  x2:4,  z1:-42,  z2:-10  }, // 1 seg1
-  { x1:-5,  x2:5,  z1:-78,  z2:-42  }, // 2 seg2
-  { x1:-4,  x2:4,  z1:-116, z2:-78  }, // 3 seg3
-  { x1:-10, x2:10, z1:-140, z2:-116 }, // 4 core
-];
-const PILLARS = [ // [x, z, half-size] — cover in seg2/seg3/core
-  [-2.6,-54,.45],[2.6,-58,.45],[-2.6,-66,.45],[2.6,-70,.45],
-  [-2.2,-88,.45],[2.2,-92,.45],[-2.2,-102,.45],[2.2,-106,.45],
-  [-6,-124,.55],[6,-124,.55],[-6,-134,.55],[6,-134,.55],
-];
+const ROOMS = CH.rooms;
+const PILLARS = CH.pillars;
 
 /* ---- procedural textures (canvas, zero image assets) ---- */
 function makeTex(draw, size=512){
@@ -429,7 +584,7 @@ function grime(g, s, n, dark){
 }
 const wallTex = makeTex((g,s)=>{
   const grd = g.createLinearGradient(0,0,0,s);
-  grd.addColorStop(0,'#4d5b50'); grd.addColorStop(.5,'#3e4a40'); grd.addColorStop(1,'#333d34');
+  grd.addColorStop(0,CH.palette.wallA); grd.addColorStop(.5,CH.palette.wallB); grd.addColorStop(1,CH.palette.wallC);
   g.fillStyle = grd; g.fillRect(0,0,s,s);
   // panel seams
   g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 5;
@@ -454,7 +609,7 @@ const wallTex = makeTex((g,s)=>{
   grime(g,s,900,true); grime(g,s,180,false);
 });
 const floorTex = makeTex((g,s)=>{
-  g.fillStyle = '#39443a'; g.fillRect(0,0,s,s);
+  g.fillStyle = CH.palette.floor; g.fillRect(0,0,s,s);
   // deck plates with diagonal tread
   for (let x=0;x<s;x+=s/2) for (let y=0;y<s;y+=s/2){
     g.strokeStyle='rgba(0,0,0,.65)'; g.lineWidth=5; g.strokeRect(x+2,y+2,s/2-4,s/2-4);
@@ -474,7 +629,7 @@ const floorTex = makeTex((g,s)=>{
   grime(g,s,1100,true);
 });
 const ceilTex = makeTex((g,s)=>{
-  g.fillStyle = '#2b332a'; g.fillRect(0,0,s,s);
+  g.fillStyle = CH.palette.ceil; g.fillRect(0,0,s,s);
   g.strokeStyle='rgba(0,0,0,.6)'; g.lineWidth=4;
   for (let x=0;x<=s;x+=s/4){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,s); g.stroke(); }
   for (let y=0;y<=s;y+=s/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(s,y); g.stroke(); }
@@ -485,10 +640,10 @@ const ceilTex = makeTex((g,s)=>{
   grime(g,s,500,true);
 });
 const crateTex = makeTex((g,s)=>{
-  g.fillStyle = '#414c41'; g.fillRect(0,0,s,s);
+  g.fillStyle = CH.palette.crate; g.fillRect(0,0,s,s);
   g.strokeStyle='rgba(0,0,0,.7)'; g.lineWidth=10; g.strokeRect(6,6,s-12,s-12);
   g.strokeStyle='rgba(170,210,185,.12)'; g.lineWidth=4; g.strokeRect(26,26,s-52,s-52);
-  g.fillStyle='rgba(57,255,136,.16)'; g.fillRect(s*.3,s*.44,s*.4,s*.12);
+  g.fillStyle=CH.palette.crateMark; g.fillRect(s*.3,s*.44,s*.4,s*.12);
   grime(g,s,400,true);
 }, 256);
 
@@ -498,7 +653,7 @@ function surfMat(tex, rx, ry, extra={}){
     map, bumpMap: map, bumpScale: .05, roughness: .82, metalness: .5, ...extra });
 }
 
-const matStrip = new THREE.MeshBasicMaterial({ color:0x39ff88 });
+const matStrip = new THREE.MeshBasicMaterial({ color:CH.palette.strip });
 const matDoor  = surfMat(wallTex, 1.2, 1.4, { color:0x9fb3a6, metalness:.7 });
 
 const colliders = [];   // {x1,x2,z1,z2, door?}  AABBs for movement + LOS
@@ -597,9 +752,7 @@ ROOMS.forEach(r=>{
 
 // scattered supply crates (solid — they block movement, shots and sight lines)
 const crateMat = surfMat(crateTex, 1, 1, { metalness:.55 });
-[[-2.2,-14,.8,.35],[2.4,-31,.65,1.1],[-3.5,-48,.9,.6],[3.8,-64,.75,.2],
- [-2.8,-86,.8,.4],[2.7,-108,.9,.25],[-7.5,-122,1.0,.3],[7.4,-136.5,.85,.5]]
-.forEach(([x,z,s,rot])=>{
+CH.crates.forEach(([x,z,s,rot])=>{
   const m = new THREE.Mesh(unitBox, crateMat);
   m.scale.set(s,s,s); m.position.set(x, s/2, z); m.rotation.y = rot;
   scene.add(m); wallMeshes.push(m);
@@ -617,22 +770,12 @@ const crateMat = surfMat(crateTex, 1, 1, { metalness:.55 });
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   scene.add(new THREE.Points(g, new THREE.PointsMaterial({
-    color:0x7dc79b, size:.035, transparent:true, opacity:.45, depthWrite:false })));
+    color:CH.palette.dust, size:.035, transparent:true, opacity:.45, depthWrite:false })));
 }
 
-// hive core object
-const coreGroup = new THREE.Group();
-const coreMat = new THREE.MeshStandardMaterial({ color:0x0c1810, emissive:0x39ff88,
-  emissiveIntensity:.9, roughness:.3, metalness:.6 });
-const coreMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), coreMat);
-coreMesh.position.y = 2;
-const coreWire = new THREE.LineSegments(new THREE.EdgesGeometry(coreMesh.geometry),
-  new THREE.LineBasicMaterial({ color:0xbaffd9 }));
-coreWire.position.y = 2;
-coreGroup.add(coreMesh, coreWire);
-coreGroup.position.set(0, 0, -134);
-scene.add(coreGroup);
-const CORE_POS = new THREE.Vector3(0, 1.6, -134);
+// chapter set-piece (hive core / ledger console) — built after shared geometry
+const CORE_POS = new THREE.Vector3(...CH.objectivePos);
+let PROPS = null;
 
 // pickup rifle on floor in start room
 // shared unit geometries for all built models (scaled per part)
@@ -685,7 +828,7 @@ const rifleFloor = new THREE.Group();
   glow.position.y = .12;
   rifleFloor.add(rf, glow);
   rifleFloor.position.set(0, .25, -4);
-  scene.add(rifleFloor);
+  if (!CH.startArmed) scene.add(rifleFloor);
 }
 
 // view-model rifle (attached to camera after pickup)
@@ -748,6 +891,83 @@ const shadowTex = makeTex((g,s)=>{
 const shadowMat = new THREE.MeshBasicMaterial({ map:shadowTex, transparent:true,
   opacity:.6, depthWrite:false });
 const shadowGeo = new THREE.PlaneGeometry(1,1);
+
+/* ---- chapter set-piece props ---- */
+function textPlate(txt){
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0c1214'; g.fillRect(0,0,256,64);
+  g.strokeStyle = 'rgba(174,233,255,.5)'; g.lineWidth = 3; g.strokeRect(3,3,250,58);
+  g.fillStyle = '#cdeefb'; g.font = 'bold 30px monospace'; g.textAlign = 'center';
+  g.fillText(txt, 128, 42);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshBasicMaterial({ map: t });
+}
+function buildPropsCh1(){
+  const g = new THREE.Group();
+  const coreMat = new THREE.MeshStandardMaterial({ color:0x0c1810, emissive:0x39ff88,
+    emissiveIntensity:.9, roughness:.3, metalness:.6 });
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), coreMat);
+  core.position.y = 2;
+  const wire = new THREE.LineSegments(new THREE.EdgesGeometry(core.geometry),
+    new THREE.LineBasicMaterial({ color:0xbaffd9 }));
+  wire.position.y = 2;
+  g.add(core, wire);
+  g.position.set(CORE_POS.x, 0, CORE_POS.z);
+  scene.add(g);
+  return {
+    animate(dt){ g.rotation.y += dt*.4; coreMat.emissiveIntensity = .9 + Math.sin(G.time*3)*.3; },
+    onComplete(){ coreMat.emissive.setHex(0xffd23f); },
+  };
+}
+function buildPropsCh2(){
+  const glassMat  = new THREE.MeshStandardMaterial({ color:0xbfe4ef, roughness:.12,
+    metalness:0, transparent:true, opacity:.16, depthWrite:false });
+  const fluidMat  = new THREE.MeshBasicMaterial({ color:0x86d8c9, transparent:true,
+    opacity:.13, blending:THREE.AdditiveBlending, depthWrite:false });
+  const figureMat = new THREE.MeshStandardMaterial({ color:0x0a0d0e, roughness:.9, metalness:0 });
+  const baseMat   = new THREE.MeshStandardMaterial({ color:0x39444a, roughness:.5, metalness:.6 });
+  CH.cylinders.forEach(([x,z,angela])=>{
+    const base = new THREE.Mesh(cylGeo, baseMat);
+    base.scale.set(.55,.3,.55); base.position.set(x,.15,z);
+    const glass = new THREE.Mesh(cylGeo, glassMat);
+    glass.scale.set(.45,2.3,.45); glass.position.set(x,1.45,z);
+    const fluid = new THREE.Mesh(cylGeo, angela ? fluidMat.clone() : fluidMat);
+    fluid.scale.set(.41,2.2,.41); fluid.position.set(x,1.45,z);
+    const fig = new THREE.Mesh(sphereGeo, figureMat);
+    fig.scale.set(.17,.62,.13); fig.position.set(x,1.35,z);
+    const cap = new THREE.Mesh(cylGeo, baseMat);
+    cap.scale.set(.5,.18,.5); cap.position.set(x,2.7,z);
+    scene.add(base, glass, fluid, fig, cap);
+    if (angela){
+      fluid.material.opacity = .3;
+      const plate = new THREE.Mesh(new THREE.PlaneGeometry(.8,.2), textPlate('ANGELA M.'));
+      plate.position.set(x - Math.sign(x)*.62, 1.1, z);
+      plate.rotation.y = x > 0 ? -Math.PI/2 : Math.PI/2;
+      scene.add(plate);
+    }
+    colliders.push({x1:x-.5, x2:x+.5, z1:z-.5, z2:z+.5});
+  });
+  // ledger console
+  const g = new THREE.Group();
+  const desk = new THREE.Mesh(unitBox, baseMat);
+  desk.scale.set(2.6,.95,.9); desk.position.y = .48;
+  const screenMat = new THREE.MeshBasicMaterial({ color:0xaee9ff, transparent:true, opacity:.85 });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(2.2,.8), screenMat);
+  screen.position.set(0, 1.55, .1); screen.rotation.x = -.35;
+  const towerL = new THREE.Mesh(unitBox, baseMat);
+  towerL.scale.set(.5,2.4,.5); towerL.position.set(-1.8,1.2,0);
+  const towerR = towerL.clone(); towerR.position.x = 1.8;
+  g.add(desk, screen, towerL, towerR);
+  g.position.set(CORE_POS.x, 0, CORE_POS.z);
+  scene.add(g);
+  colliders.push({x1:CORE_POS.x-1.4, x2:CORE_POS.x+1.4, z1:CORE_POS.z-.5, z2:CORE_POS.z+.5});
+  return {
+    animate(dt){ screenMat.opacity = .7 + Math.sin(G.time*7)*.12 + Math.sin(G.time*23)*.06; },
+    onComplete(){ screenMat.color.setHex(0xffd23f); },
+  };
+}
+PROPS = CH.id === 'ch2' ? buildPropsCh2() : buildPropsCh1();
 
 /* ============================================================
    Drones
@@ -847,12 +1067,20 @@ function buildSentry(eyeMat){
   return { g, anim };
 }
 
+// per-kind combat stats; warden is the heavy sentry frame from chapter 2
+const KINDS = {
+  crawler: { hp:30,  rad:.55, homeY:.5 },
+  sentry:  { hp:60,  rad:.65, homeY:1.7, charge:1.6, tele:.7,  pdmg:12, pspeed:13, scale:1,    idleEye:0x2bff7f },
+  warden:  { hp:130, rad:.95, homeY:1.9, charge:1.0, tele:.5,  pdmg:16, pspeed:17, scale:1.55, idleEye:0xffc24d },
+};
+
 const drones = [];
 let droneSeq = 0;
 
 function makeDrone(kind, x, z, segment){
   const isCrawler = kind === 'crawler';
-  const eyeMat = new THREE.MeshBasicMaterial({ color: EYE_GREEN });
+  const K = KINDS[kind];
+  const eyeMat = new THREE.MeshBasicMaterial({ color: K.idleEye || EYE_GREEN });
   const built = isCrawler ? buildCrawler(eyeMat) : buildSentry(eyeMat);
   const mesh = built.g;
   // blob shadow, child of the group but pinned to the floor each frame
@@ -860,10 +1088,12 @@ function makeDrone(kind, x, z, segment){
   shadow.rotation.x = -Math.PI/2;
   shadow.scale.setScalar(isCrawler ? 1.2 : 1.4);
   mesh.add(shadow);
+  if (K.scale && K.scale !== 1) mesh.scale.setScalar(K.scale);
   const d = {
     id: droneSeq++, kind, segment, mesh, eyeMat, anim: built.anim, shadow,
-    home: new THREE.Vector3(x, isCrawler ? .5 : 1.7, z),
-    hp: isCrawler ? 30 : 60, maxHp: isCrawler ? 30 : 60,
+    baseScale: K.scale || 1, idleEye: K.idleEye || EYE_GREEN,
+    home: new THREE.Vector3(x, K.homeY, z),
+    hp: K.hp, maxHp: K.hp,
     state: 'idle',            // idle > alert > attack
     stateT: 0, losT: Math.random()*.15,
     meleeCd: 0, chargeT: 0, patrolDir: 1,
@@ -874,18 +1104,7 @@ function makeDrone(kind, x, z, segment){
   return d;
 }
 
-const INITIAL_DRONES = [
-  // segment 1
-  ['crawler',   0, -18, 1], ['crawler', -2, -26, 1], ['crawler',  2, -34, 1],
-  // segment 2
-  ['crawler',  -3, -50, 2], ['crawler',  3, -56, 2], ['crawler',  0, -72, 2],
-  ['sentry', -3.5, -62, 2], ['sentry', 3.5, -74, 2],
-  // segment 3
-  ['crawler',  -2, -84, 3], ['crawler',  2, -90, 3], ['crawler', 0, -97, 3], ['crawler', -2, -110, 3],
-  ['sentry',  2.5, -100, 3], ['sentry', -2.5, -107, 3], ['sentry', 0, -113, 3],
-  // core initial guards
-  ['sentry',  -6, -128, 4], ['sentry', 6, -128, 4],
-];
+const INITIAL_DRONES = CH.drones;
 
 function spawnSegment(seg){
   // (re)create the initial drones of a segment; used at load + on respawn
@@ -910,8 +1129,8 @@ function activeDroneCount(){
 }
 
 // core-wave spawn points (room corners)
-const WAVE_SPAWNS = [[-8,-118],[8,-118],[-8,-138],[8,-138]];
-const MAX_ACTIVE = 8, WAVE_TOTAL = 12;
+const WAVE_SPAWNS = CH.waveSpawns;
+const MAX_ACTIVE = 8, WAVE_TOTAL = CH.waveTotal;
 
 /* ============================================================
    Sentry projectiles
@@ -919,12 +1138,12 @@ const MAX_ACTIVE = 8, WAVE_TOTAL = 12;
 const projGeo = new THREE.SphereGeometry(.14, 6, 6);
 const projMat = new THREE.MeshBasicMaterial({ color:0xff5566 });
 const projectiles = [];
-function fireProjectile(from, target){
+function fireProjectile(from, target, speed = 13, dmg = 12){
   const m = new THREE.Mesh(projGeo, projMat);
   m.position.copy(from);
-  const vel = target.clone().sub(from).normalize().multiplyScalar(13);
+  const vel = target.clone().sub(from).normalize().multiplyScalar(speed);
   scene.add(m);
-  projectiles.push({ mesh:m, vel, life:4 });
+  projectiles.push({ mesh:m, vel, life:4, dmg });
   AudioSys.sentryFire();
 }
 
@@ -1145,7 +1364,7 @@ function tryFire(dt){
     const t = _toDrone.dot(_rayDir);
     if (t < 0 || t > bestT) continue;
     const closest2 = _toDrone.lengthSq() - t*t;
-    const rad = d.kind === 'crawler' ? .55 : .65;
+    const rad = KINDS[d.kind].rad;
     if (closest2 < rad*rad){ bestT = t; bestDrone = d; }
   }
 
@@ -1190,7 +1409,7 @@ function damageDrone(d, dmg){
 function setDroneState(d, s){
   if (d.state === s) return;
   d.state = s; d.stateT = 0;
-  d.eyeMat.color.setHex(s === 'idle' ? EYE_GREEN : EYE_RED);
+  d.eyeMat.color.setHex(s === 'idle' ? d.idleEye : EYE_RED);
   if (s === 'alert') AudioSys.alert();
 }
 
@@ -1214,7 +1433,7 @@ function updateDrones(dt){
     if (!d.alive){
       if (d.deathT > 0){
         d.deathT -= dt;
-        d.mesh.scale.setScalar(Math.max(.01, d.deathT/.4));
+        d.mesh.scale.setScalar(d.baseScale * Math.max(.01, d.deathT/.4));
         d.mesh.rotation.y += dt*18;
         d.mesh.rotation.x += dt*7;
         d.mesh.position.y = Math.max(.15, d.mesh.position.y - dt*2.2);
@@ -1230,7 +1449,7 @@ function updateDrones(dt){
     d.stateT += dt;
     d.shadow.position.y = .03 - m.y;      // pin blob shadow to the floor
     const A = d.anim;
-    if (d.kind === 'sentry'){
+    if (d.kind !== 'crawler'){
       A.ringH.rotation.z += dt * (d.state === 'idle' ? .8 : 3.2);
       A.ringV.rotation.x += dt * (d.state === 'idle' ? .5 : 2.1);
       if (A.recoil > 0) A.recoil = Math.max(0, A.recoil - dt*5);
@@ -1257,7 +1476,7 @@ function updateDrones(dt){
 
     if (d.state === 'idle'){
       // gentle bob / patrol (the sensor head does the visible scanning)
-      if (d.kind === 'sentry'){
+      if (d.kind !== 'crawler'){
         m.x += d.patrolDir * dt * .5;
         if (Math.abs(m.x - d.home.x) > 1.4) d.patrolDir *= -1;
       }
@@ -1287,12 +1506,13 @@ function updateDrones(dt){
       } else {
         // sentry: telegraphed shot cycle
         m.y = d.home.y + Math.sin(G.time*3 + d.id)*.1;
+        const K = KINDS[d.kind];
         if (!seesPlayer){ d.chargeT = 0; d.eyeMat.color.setHex(EYE_RED); continue; }
         d.chargeT += dt;
-        if (d.chargeT > 1.6){
-          // telegraph: eye flares white-hot for the final .7s
-          const w = d.chargeT - 1.6;
-          if (w < .7){
+        if (d.chargeT > K.charge){
+          // telegraph: eye flares white-hot before the shot
+          const w = d.chargeT - K.charge;
+          if (w < K.tele){
             if (w < dt) AudioSys.sentryCharge();
             d.eyeMat.color.setRGB(1, .17 + w*1.15, .24 + w*1.05);
           } else {
@@ -1301,7 +1521,7 @@ function updateDrones(dt){
             const mp = new THREE.Vector3();
             d.anim.muzzle.getWorldPosition(mp);
             d.anim.recoil = 1;
-            fireProjectile(mp, new THREE.Vector3(px, PLAYER_EYE - .2, pz));
+            fireProjectile(mp, new THREE.Vector3(px, PLAYER_EYE - .2, pz), K.pspeed, K.pdmg);
           }
         }
       }
@@ -1319,7 +1539,7 @@ function updateProjectiles(dt){
     const dz = p.mesh.position.z - yawObj.position.z;
     let dead = p.life <= 0;
     if (dx*dx + dy*dy + dz*dz < .45){
-      damagePlayer(12); dead = true;
+      damagePlayer(p.dmg); dead = true;
     } else {
       // wall hit
       for (const c of colliders){
@@ -1373,19 +1593,16 @@ function updateDoors(dt){
     }
     setObjectiveText();
   }
-  // mid-segment chatter zones
-  if (z < -26 ) radio('seg1_mid');
-  if (z < -60 ) radio('seg2_mid');
-  if (z < -97 ) radio('seg3_mid');
+  // chapter-defined chatter zones
+  CH.zones.forEach(zn => { if (z < zn.z) radio(zn.key); });
 }
 
 function setObjectiveText(){
+  const O = CH.obj;
   const t = {
-    0: G.hasRifle ? 'ADVANCE INTO THE HIVE' : 'FIND YOUR WEAPON',
-    1: 'CLEAR HIVE SEGMENT 1 / 3',
-    2: 'CLEAR HIVE SEGMENT 2 / 3',
-    3: 'CLEAR HIVE SEGMENT 3 / 3',
-    4: G.planted ? 'GET CLEAR' : 'PLANT THE CHARGE AT THE CORE',
+    0: G.hasRifle ? O.advance : O.find,
+    1: O.segs[0], 2: O.segs[1], 3: O.segs[2],
+    4: G.planted ? O.done : O.final,
   }[G.currentSegment] || '';
   el.objective.textContent = t;
 }
@@ -1421,7 +1638,7 @@ function updateObjective(dt){
   if (near){
     if (IS_TOUCH) el.plantBtn.style.display = 'block';
     el.prompt.style.display = holding ? 'none' : 'block';
-    el.prompt.textContent = IS_TOUCH ? 'HOLD PLANT TO ARM THE CHARGE' : 'HOLD [E] TO ARM THE CHARGE';
+    el.prompt.textContent = IS_TOUCH ? CH.obj.promptTouch : CH.obj.promptKey;
     if (holding){
       G.planting = true;
       const prev = G.plantProgress;
@@ -1452,7 +1669,7 @@ function plantComplete(){
   AudioSys.alarmStop();
   radio('planted');
   setObjectiveText();
-  coreMat.emissive.setHex(0xffd23f);
+  PROPS.onComplete();
   // brief beat, then extraction
   setTimeout(()=>{ if (G.mode === 'play') beginExtraction(); }, 2600);
 }
@@ -1602,9 +1819,8 @@ function updateFX(dt){
     muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*300);
   // sentry thruster flicker (shared material — one write covers all pods)
   thrusterGlowMat.opacity = .55 + Math.sin(G.time*22)*.25;
-  // core pulse
-  coreGroup.rotation.y += dt * .4;
-  coreMat.emissiveIntensity = .9 + Math.sin(G.time*3)*.3;
+  // chapter set-piece animation + objective light pulse
+  PROPS.animate(dt);
   coreLight.intensity = 30 + Math.sin(G.time*3)*10;
   // alarm strips + core light shift red
   if (G.alarm && !G.planted){
@@ -1677,7 +1893,7 @@ function finishIntro(skipAll){
   hudVisible(true);
   if (IS_TOUCH){ el.stickZone.style.display='block'; el.lookZone.style.display='block'; }
   else if (!pointerLocked) renderer.domElement.requestPointerLock();
-  if (skipAll) pickupRifle();
+  if (skipAll || CH.startArmed) pickupRifle();
   setObjectiveText();
 }
 el.skipBtn.addEventListener('click', e => {
