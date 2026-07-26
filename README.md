@@ -9,6 +9,10 @@ funneling players to Book 1.
   Marcus crosses the cylinder halls from the book — including cylinder
   A-113, ANGELA M. — and pulls the ledger of taken names while wardens
   (heavy sentry frames) defend the control room.
+- **Chapter 3 — The Final Upload** (`#ch3`): the finale. Fight through
+  the pre-war mountain research facility (vehicle bay, research wing,
+  warden-guarded power hall) to the uplink lab, then hold at the neural
+  interface for the upload while everything the machines have converges.
 
 Chapters are pure data objects in `CHAPTERS` inside `index.html`
 (rooms, drones, radio script, palette, props); the engine builds

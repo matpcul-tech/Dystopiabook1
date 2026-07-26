@@ -217,9 +217,7 @@ const CHAPTERS = {
   ch1: {
     id: 'ch1',
     subtitle: 'CHAPTER ONE — THE HIVE',
-    switchLabel: 'PLAY CHAPTER 2: THE PROCESSING CENTER ▸',
-    switchHash: '#ch2',
-    next: true,
+    nextHash: '#ch2',
     startArmed: false,
     palette: {
       wallA:'#4d5b50', wallB:'#3e4a40', wallC:'#333d34',
@@ -294,9 +292,7 @@ const CHAPTERS = {
   ch2: {
     id: 'ch2',
     subtitle: 'CHAPTER TWO — THE PROCESSING CENTER',
-    switchLabel: '◂ BACK TO CHAPTER 1: THE HIVE',
-    switchHash: '#ch1',
-    next: false,
+    nextHash: '#ch3',
     startArmed: true,
     palette: {
       wallA:'#4c565c', wallB:'#3d474d', wallC:'#323b40',
@@ -373,6 +369,84 @@ const CHAPTERS = {
     endTitle: "EVERY NAME REMEMBERED.",
     endSub: "The ledger is free — but the machines keep more than names. Read how Marcus's war began, and where it has to go.",
   },
+
+  ch3: {
+    id: 'ch3',
+    subtitle: 'CHAPTER THREE — THE FINAL UPLOAD',
+    nextHash: null,
+    startArmed: true,
+    palette: {
+      wallA:'#5d554a', wallB:'#4c453c', wallC:'#3e3830',
+      floor:'#453f36', ceil:'#33302a', crate:'#4c463c',
+      crateMark:'rgba(255,184,92,.18)',
+      strip:0xffb85c, fog:0x0a0603, bg:0x050302,
+      hemi:0x6b6152, lamp:0xffe9c9, dust:0xc9b08a, coreLight:0xffb85c,
+    },
+    rooms: [
+      { x1:-3,   x2:3,   z1:-10,  z2:2    },   // mountain pass entry
+      { x1:-7,   x2:7,   z1:-44,  z2:-10  },   // vehicle bay
+      { x1:-3.5, x2:3.5, z1:-72,  z2:-44  },   // research wing
+      { x1:-8,   x2:8,   z1:-106, z2:-72  },   // power hall
+      { x1:-6,   x2:6,   z1:-128, z2:-106 },   // uplink laboratory
+    ],
+    pillars: [
+      [-4,-78,.5],[4,-84,.5],[-4,-90,.5],[4,-96,.5],
+      [-3,-110,.5],[3,-110,.5],
+    ],
+    crates: [
+      [-4.5,-16,.9,.4],[4.2,-20,.8,1.0],[-3.8,-30,.85,.2],[5.0,-36,.75,.7],[2.8,-15,.7,.3],
+      [2.4,-50,.7,.5],[-2.5,-62,.8,.9],
+      [5.5,-80,.9,.3],[-5.8,-94,.85,.6],
+      [4.6,-112,.8,.2],[-4.8,-122,.9,.5],
+    ],
+    cylinders: [],
+    drones: [
+      ['crawler', -4, -16, 1], ['crawler', 4, -22, 1], ['crawler', -2, -30, 1],
+      ['crawler', 3, -38, 1], ['sentry', 0, -40, 1],
+      ['crawler', -2, -50, 2], ['crawler', 2, -56, 2], ['sentry', -2, -60, 2],
+      ['crawler', 0, -66, 2], ['sentry', 2, -68, 2],
+      ['crawler', -3, -78, 3], ['crawler', 3, -82, 3], ['sentry', -5, -88, 3],
+      ['warden', 0, -92, 3], ['sentry', 5, -96, 3], ['warden', 0, -102, 3],
+      ['warden', 0, -112, 4],
+    ],
+    waveSpawns: [[-5,-108],[5,-108],[-5,-126],[5,-126]],
+    waveTotal: 16,
+    waveKinds: ['crawler','crawler','warden','crawler'],
+    zones: [ {z:-24,key:'seg1_mid'}, {z:-58,key:'seg2_mid'}, {z:-90,key:'seg3_mid'} ],
+    objectivePos: [0, 1.4, -118],
+    obj: {
+      find:'FIND YOUR WEAPON', advance:'REACH THE FACILITY',
+      segs:['CROSS THE VEHICLE BAY','CLEAR THE RESEARCH WING','CROSS THE POWER HALL'],
+      final:'BEGIN THE UPLOAD AT THE INTERFACE', done:'HOLD ON',
+      armLabel:'UPLOADING', btn:'UPLOAD',
+      promptKey:'HOLD [E] TO BEGIN THE UPLOAD', promptTouch:'HOLD UPLOAD TO BEGIN',
+    },
+    introLines: [
+      "...",
+      "Mountain facility. Pre-war research complex.",
+      "\"Six days calibrating. Twenty-three simulations.\"",
+      "\"Nobody knows what happens after the upload.\"",
+      "Marcus chose anyway.",
+    ],
+    radio: {
+      pickup:      [{who:N.lead, text:"Perimeter's breached — they followed us up the mountain."},
+                    {who:N.ops,  text:"The interface is calibrated and live. Get to the lab. I'll talk you through."}],
+      seg1_mid:    [{who:N.medic,text:"Aircraft sweeping the valley. Second wave inbound."}],
+      seg1_clear:  [{who:N.ops,  text:"Vehicle bay clear. Research wing ahead."}],
+      seg2_enter:  [{who:N.lead, text:"This place was built before the war. It's held this long. It holds today."}],
+      seg2_mid:    [{who:N.medic,text:"Their network traffic just spiked. They know what we found."}],
+      seg2_clear:  [{who:N.ops,  text:"Power hall next. Wardens on the floor — the reactor is what they're guarding."}],
+      seg3_enter:  [{who:N.medic,text:"Vitals ragged. Almost there, Marcus."}],
+      seg3_mid:    [{who:N.lead, text:"Whatever happens in that lab — it's been an honor, soldier."}],
+      seg3_clear:  [{who:N.ops,  text:"Uplink lab is open. The interface is waiting."}],
+      core_enter:  [{who:N.ops,  text:"Contact array to the base of the skull. The upload only works from inside."}],
+      alarm:       [{who:N.lead, text:"Everything they have is converging on you! We hold the door — GO!"}],
+      planted:     [{who:N.medic,text:"Upload complete... Marcus? The machines — they're stopping. Everywhere. They're stopping."}],
+      extract:     [{who:N.lead, text:"It's over. Come home, Marcus. Come home."}],
+    },
+    endTitle: "THE WAR ENDS. THE QUESTION BEGINS.",
+    endSub: "What Marcus uploaded — and what answered — is the heart of Dystopia: Life After The Machines. Read the full story, then continue with Book Two: Layers of Truth.",
+  },
 };
 
 const CH = CHAPTERS[(location.hash || '').replace('#','')] || CHAPTERS.ch1;
@@ -401,17 +475,20 @@ document.getElementById('plantBtn').textContent = CH.obj.btn;
 document.getElementById('endTitle').textContent = CH.endTitle;
 document.getElementById('endSub').textContent = CH.endSub;
 {
-  const sw = document.createElement('button');
-  sw.className = 'btn';
-  sw.style.cssText = 'margin-top:18px;font-size:11px;padding:10px 18px;opacity:.85';
-  sw.textContent = CH.switchLabel;
-  sw.onclick = () => { location.hash = CH.switchHash; location.reload(); };
-  document.getElementById('startScreen').appendChild(sw);
-  if (CH.next){
+  Object.values(CHAPTERS).forEach(c => {
+    if (c.id === CH.id) return;
+    const sw = document.createElement('button');
+    sw.className = 'btn';
+    sw.style.cssText = 'margin-top:14px;font-size:11px;padding:10px 18px;opacity:.85';
+    sw.textContent = '\u25B8 ' + c.subtitle;
+    sw.onclick = () => { location.hash = '#' + c.id; location.reload(); };
+    document.getElementById('startScreen').appendChild(sw);
+  });
+  if (CH.nextHash){
     const nx = document.createElement('button');
     nx.className = 'btn';
     nx.textContent = 'NEXT CHAPTER \u25B8';
-    nx.onclick = () => { location.hash = '#ch2'; location.reload(); };
+    nx.onclick = () => { location.hash = CH.nextHash; location.reload(); };
     document.getElementById('endBtns').appendChild(nx);
   }
 }
@@ -524,7 +601,7 @@ const AudioSys = (() => {
 const MusicSys = (() => {
   let ctx=null, out=null, padGain=null, padFilter=null, arpGain=null, percGain=null,
       delay=null, timer=null, step=0, mode='calm', muted=false, running=false;
-  const ROOT = CH.id === 'ch2' ? 110.0 : 73.42;   // A2 (colder) / D2 (hive)
+  const ROOT = ({ ch1:73.42, ch2:110.0, ch3:82.41 })[CH.id] || 73.42; // D2 / A2 / E2
   const SCALE = [0,3,5,7,10,12,15,19];            // minor pentatonic, two octaves
   const MODES = {
     calm:   { pad:.05,  arp:.05, perc:0,    stepDur:.42, density:.20 },
@@ -1091,7 +1168,50 @@ function buildPropsCh2(){
     onComplete(){ screenMat.color.setHex(0xffd23f); },
   };
 }
-PROPS = CH.id === 'ch2' ? buildPropsCh2() : buildPropsCh1();
+function buildPropsCh3(){
+  const frame = new THREE.MeshStandardMaterial({ color:0x4a4238, roughness:.5, metalness:.6 });
+  const amber = new THREE.MeshBasicMaterial({ color:0xffb85c, transparent:true, opacity:.9 });
+  const colMat = new THREE.MeshBasicMaterial({ color:0xffb85c, transparent:true,
+    opacity:.1, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+  const screenMat = new THREE.MeshBasicMaterial({ color:0xffd9a0, transparent:true, opacity:.8 });
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(cylGeo, frame);
+  base.scale.set(.6,.5,.6); base.position.y = .25;
+  const seat = new THREE.Mesh(unitBox, frame);
+  seat.scale.set(1.0,.15,1.0); seat.position.y = .6;
+  const back = new THREE.Mesh(unitBox, frame);
+  back.scale.set(1.0,1.25,.15); back.position.set(0,1.25,.5); back.rotation.x = -.18;
+  const cradle = new THREE.Mesh(torusGeoSm, amber);            // the contact array
+  cradle.scale.setScalar(.6); cradle.position.set(0,1.85,.42);
+  const halo = new THREE.Mesh(torusGeoLg, amber);
+  halo.scale.setScalar(1.7); halo.rotation.x = Math.PI/2; halo.position.y = 2.7;
+  const column = new THREE.Mesh(cylGeo, colMat);
+  column.scale.set(.85,3.6,.85); column.position.y = 1.8;
+  g.add(base, seat, back, cradle, halo, column);
+  [-2.2, 2.2].forEach(x => {
+    const desk = new THREE.Mesh(unitBox, frame);
+    desk.scale.set(1.4,.9,.7); desk.position.set(x,.45,.2);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.1,.5), screenMat);
+    scr.position.set(x,1.25,.35); scr.rotation.x = -.3;
+    g.add(desk, scr);
+  });
+  g.position.set(CORE_POS.x, 0, CORE_POS.z);
+  scene.add(g);
+  colliders.push({x1:CORE_POS.x-.8, x2:CORE_POS.x+.8, z1:CORE_POS.z-.6, z2:CORE_POS.z+.6});
+  return {
+    animate(dt){
+      halo.rotation.z += dt * .7;
+      colMat.opacity = .08 + Math.sin(G.time*5)*.03 + Math.sin(G.time*17)*.02;
+      screenMat.opacity = .65 + Math.sin(G.time*9)*.15;
+    },
+    onComplete(){
+      amber.color.setHex(0xd6ffe6);
+      colMat.color.setHex(0xd6ffe6); colMat.opacity = .3;
+      screenMat.color.setHex(0xd6ffe6);
+    },
+  };
+}
+PROPS = CH.id === 'ch2' ? buildPropsCh2() : CH.id === 'ch3' ? buildPropsCh3() : buildPropsCh1();
 
 /* ============================================================
    Drones
@@ -1749,7 +1869,8 @@ function updateWave(dt){
   if (G.waveT <= 0 && G.waveSpawned < WAVE_TOTAL && activeDroneCount() < MAX_ACTIVE){
     G.waveT = 3;
     const [x,z] = WAVE_SPAWNS[G.waveSpawned % WAVE_SPAWNS.length];
-    const d = makeDrone('crawler', x, z, 9); // segment 9 = wave (never gates doors)
+    const kinds = CH.waveKinds || ['crawler'];
+    const d = makeDrone(kinds[G.waveSpawned % kinds.length], x, z, 9); // segment 9 = wave
     d.spawned = true;
     setDroneState(d, 'attack');
     scene.add(d.mesh);
