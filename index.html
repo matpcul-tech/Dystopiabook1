@@ -419,7 +419,7 @@ document.getElementById('endSub').textContent = CH.endSub;
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 el.startHint.innerHTML = IS_TOUCH
   ? 'LEFT SIDE: MOVE &nbsp;&bull;&nbsp; RIGHT SIDE: LOOK &nbsp;&bull;&nbsp; FIRE BUTTON: SHOOT'
-  : 'WASD: MOVE &nbsp;&bull;&nbsp; MOUSE: LOOK &nbsp;&bull;&nbsp; CLICK: FIRE &nbsp;&bull;&nbsp; E: INTERACT';
+  : 'WASD: MOVE &nbsp;&bull;&nbsp; MOUSE: LOOK &nbsp;&bull;&nbsp; CLICK: FIRE &nbsp;&bull;&nbsp; E: INTERACT &nbsp;&bull;&nbsp; M: MUSIC';
 
 /* ============================================================
    Audio — all synthesized, zero assets
@@ -458,6 +458,7 @@ const AudioSys = (() => {
   }
   return {
     init,
+    getCtx(){ init(); return ctx; },
     resume(){ if (ctx && ctx.state === 'suspended') ctx.resume(); },
     heartbeatStart(){
       init(); if (heartTimer) return;
@@ -512,6 +513,129 @@ const AudioSys = (() => {
       tone('sawtooth', 200, 30, 1.2, 0.4, t); noise(1.0, 0.3, t, 200, 0.4); },
     extract(){ if(!ctx)return; const t=now();
       tone('sine', 220, 880, 1.6, 0.2, t); tone('sine', 330, 1320, 1.6, 0.12, t); },
+  };
+})();
+
+/* ============================================================
+   Generative music — a dark ambient score composed live by the
+   game, zero audio assets. Three intensities crossfade with the
+   situation; each chapter plays in its own key.
+   ============================================================ */
+const MusicSys = (() => {
+  let ctx=null, out=null, padGain=null, padFilter=null, arpGain=null, percGain=null,
+      delay=null, timer=null, step=0, mode='calm', muted=false, running=false;
+  const ROOT = CH.id === 'ch2' ? 110.0 : 73.42;   // A2 (colder) / D2 (hive)
+  const SCALE = [0,3,5,7,10,12,15,19];            // minor pentatonic, two octaves
+  const MODES = {
+    calm:   { pad:.05,  arp:.05, perc:0,    stepDur:.42, density:.20 },
+    combat: { pad:.06,  arp:.07, perc:.05,  stepDur:.30, density:.45 },
+    alarm:  { pad:.075, arp:.09, perc:.09,  stepDur:.22, density:.70 },
+  };
+  let stepDur=.42, density=.2;
+  function applyMode(m, hard){
+    mode = m;
+    const p = MODES[m], t = ctx.currentTime, k = hard ? .01 : 1.1;
+    padGain.gain.setTargetAtTime(p.pad, t, k);
+    arpGain.gain.setTargetAtTime(p.arp, t, k);
+    percGain.gain.setTargetAtTime(p.perc, t, k);
+    stepDur = p.stepDur; density = p.density;
+  }
+  function start(){
+    if (running) return;
+    running = true;
+    ctx = AudioSys.getCtx();
+    out = ctx.createGain(); out.gain.value = muted ? 0 : 1; out.connect(ctx.destination);
+    // pad: two detuned saws under a slowly breathing lowpass
+    padGain = ctx.createGain(); padGain.gain.value = 0;
+    padFilter = ctx.createBiquadFilter();
+    padFilter.type = 'lowpass'; padFilter.frequency.value = 380; padFilter.Q.value = .9;
+    [0.994, 1.006].forEach(dt => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.frequency.value = ROOT * dt;
+      o.connect(padFilter); o.start();
+    });
+    const lfo = ctx.createOscillator(); lfo.frequency.value = .05;
+    const lg = ctx.createGain(); lg.gain.value = 170;
+    lfo.connect(lg); lg.connect(padFilter.frequency); lfo.start();
+    padFilter.connect(padGain); padGain.connect(out);
+    // echo bus for the motif plucks
+    delay = ctx.createDelay(1); delay.delayTime.value = .34;
+    const fb = ctx.createGain(); fb.gain.value = .42;
+    delay.connect(fb); fb.connect(delay);
+    arpGain = ctx.createGain(); arpGain.gain.value = 0;
+    delay.connect(arpGain); arpGain.connect(out);
+    percGain = ctx.createGain(); percGain.gain.value = 0; percGain.connect(out);
+    applyMode('calm', true);
+    tick();
+  }
+  function pluck(t){
+    const f = ROOT * 2 * Math.pow(2, SCALE[Math.floor(Math.random()*SCALE.length)] / 12);
+    const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.linearRampToValueAtTime(.5, t + .012);
+    g.gain.exponentialRampToValueAtTime(.0001, t + .55);
+    o.connect(g); g.connect(delay); g.connect(arpGain);
+    o.start(t); o.stop(t + .6);
+  }
+  function thump(t, f0, f1, dur, peak){
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + .008);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(percGain);
+    o.start(t); o.stop(t + dur + .05);
+  }
+  function tickNoise(t){
+    const len = Math.ceil(ctx.sampleRate * .05);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<len;i++) d[i] = Math.random()*2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'highpass'; flt.frequency.value = 4200;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.5, t);
+    g.gain.exponentialRampToValueAtTime(.0001, t + .05);
+    src.connect(flt); flt.connect(g); g.connect(percGain);
+    src.start(t); src.stop(t + .08);
+  }
+  function tick(){
+    if (!running) return;
+    const t = ctx.currentTime;
+    if (Math.random() < density || step % 8 === 0) pluck(t);
+    if (step % 8 === 0){                       // sub-bass pulse each bar
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = ROOT / 2;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.linearRampToValueAtTime(.09, t + .3);
+      g.gain.exponentialRampToValueAtTime(.0001, t + 1.6);
+      o.connect(g); g.connect(out);
+      o.start(t); o.stop(t + 1.8);
+    }
+    if (mode !== 'calm'){
+      if (step % 2 === 0) tickNoise(t);
+      if (step % 4 === 0) thump(t, 92, 40, .17, .8);
+      if (mode === 'alarm' && step % 8 === 4) thump(t, 140, 60, .2, .6);
+    }
+    step++;
+    timer = setTimeout(tick, stepDur * 1000);
+  }
+  return {
+    start,
+    setMode(m){ if (running && m !== mode) applyMode(m); },
+    stop(){
+      if (!running) return;
+      out.gain.setTargetAtTime(0, ctx.currentTime, .6);
+      setTimeout(() => { running = false; clearTimeout(timer); }, 2500);
+    },
+    toggleMute(){
+      muted = !muted;
+      if (out) out.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, .05);
+    },
   };
 })();
 
@@ -1173,7 +1297,10 @@ yawObj.position.set(0, PLAYER_EYE, 0);
 const keys = {};
 let mouseFiring = false, pointerLocked = false;
 
-addEventListener('keydown', e => { keys[e.code] = true; });
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyM') MusicSys.toggleMute();
+});
 addEventListener('keyup',   e => { keys[e.code] = false; });
 
 renderer.domElement.addEventListener('click', () => {
@@ -1685,6 +1812,7 @@ function beginExtraction(){
 
 function showEndCard(){
   G.mode = 'end';
+  MusicSys.stop();
   if (document.pointerLockElement) document.exitPointerLock();
   hudVisible(false);
   el.end.style.display = 'flex';
@@ -1845,6 +1973,7 @@ function startIntro(){
   AudioSys.init();
   AudioSys.resume();
   AudioSys.heartbeatStart();
+  MusicSys.start();
   // lying on the floor, looking up
   yawObj.position.set(0, .35, 0);
   G.pitch = 1.1; pitchObj.rotation.x = G.pitch;
@@ -1937,7 +2066,7 @@ requestAnimationFrame(()=>{ el.fade.style.opacity = 0; });
 G.mode = 'title';
 
 // debug hook (console-only; not used by game logic)
-window.__LATM = { G, drones, yawObj, finishIntro, pickupRifle, damageDrone };
+window.__LATM = { G, drones, yawObj, finishIntro, pickupRifle, damageDrone, MusicSys };
 
 /* ============================================================
    Main loop
@@ -1961,6 +2090,12 @@ function loop(){
     updateWave(dt);
     updateObjective(dt);
     updateRadio(dt);
+    if (G.time - (G.musicT || 0) > .5){
+      G.musicT = G.time;
+      MusicSys.setMode(
+        G.alarm && !G.planted ? 'alarm' :
+        drones.some(d => d.alive && d.state === 'attack') ? 'combat' : 'calm');
+    }
   }
   if (G.mode === 'dead' || G.mode === 'extracting'){
     updateRadio(dt);
