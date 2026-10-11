@@ -2215,7 +2215,7 @@ function spawnDecal(at, n){
 
 // ---- ejected brass ----
 const shellGeo = new THREE.CylinderGeometry(.007, .0075, .034, 6);
-const shellMat = new THREE.MeshStandardMaterial({ color:0xd0a64e, metalness:1, roughness:.28, envMapIntensity:1.6 });
+const shellMat = new THREE.MeshStandardMaterial({ color:0x8c6a2c, metalness:.9, roughness:.4, envMapIntensity:.9 });
 const shells = [];
 for (let i=0;i<8;i++){
   const m = new THREE.Mesh(shellGeo, shellMat); m.visible = false; scene.add(m);
@@ -2548,7 +2548,7 @@ function makeDrone(kind, x, z, segment){
     anim.haloMat = new THREE.SpriteMaterial({ map:SOFT_TEX, color:K.idleEye || EYE_GREEN, transparent:true,
       opacity:.85, blending:THREE.AdditiveBlending, depthWrite:false });
     const halo = new THREE.Sprite(anim.haloMat);
-    halo.scale.setScalar(isCrawler ? .6 : .85); halo.position.set(...M.eye); g.add(halo);
+    halo.scale.setScalar(isCrawler ? .5 : .6); halo.position.set(...M.eye); g.add(halo);
     if (M.muzzle){
       anim.muzzle = new THREE.Object3D();
       anim.muzzle.position.set(...M.muzzle);
@@ -2871,7 +2871,7 @@ function tryFire(dt){
   viewRifle.updateMatrixWorld(true);
   _mz.copy(VM.muzzle); viewRifle.localToWorld(_mz);
   spawnTracer(_mz.clone().addScaledVector(_rayDir, .1), hitPoint);
-  muzzleLight.intensity = 30;
+  muzzleLight.intensity = 22;
   VM.flash = 1;
   ejectShell();
 
@@ -3386,7 +3386,7 @@ function updateFX(dt){
   FX.low += ((G.hp < 40 ? (40 - G.hp)/40 : 0) - FX.low) * Math.min(1, dt*3);
   FX.ca = .0005 + FX.dmg*.011;
   // viewmodel muzzle flash sprite
-  VMLIGHT.value = .03 + VM.flash*.45;
+  VMLIGHT.value = .03 + VM.flash*.14;
   if (VM.flash > 0){
     VM.flash = Math.max(0, VM.flash - dt*16);
     muzzleSprite.visible = true;
@@ -3425,7 +3425,7 @@ function updateFX(dt){
   GFX.shafts.forEach(m => { if (m.visible) m.material.uniforms.uA.value = m.userData.base * (.8 + .2*Math.sin(G.time*1.7 + m.userData.ph) + (Math.sin(G.time*23 + m.userData.ph*3) > .96 ? -.3 : 0)); });
   // chapter set-piece animation + objective light pulse
   PROPS.animate(dt);
-  coreLight.intensity = 30 + Math.sin(G.time*3)*10;
+  coreLight.intensity = 15 + Math.sin(G.time*3)*5;
   // alarm strips + core light shift red
   if (G.alarm && !G.planted){
     const pulse = (Math.sin(G.time*6) + 1) / 2;
