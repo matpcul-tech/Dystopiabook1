@@ -73,7 +73,7 @@
   #ammoWrap .trk{stroke:rgba(232,239,244,.16);}
   #heatFill{stroke:var(--acc);stroke-dasharray:138.2;stroke-dashoffset:138.2;filter:drop-shadow(0 0 4px var(--acc));}
   #ammoInf{position:absolute;right:0;top:0;width:56px;height:56px;line-height:56px;text-align:center;font-size:24px;}
-  #ammoName{position:absolute;right:66px;top:14px;font-size:10px;letter-spacing:3px;color:var(--dim);}
+  #ammoName{position:absolute;right:66px;top:14px;white-space:nowrap;font-size:10px;letter-spacing:3px;color:var(--dim);}
   #ammoName:after{content:"";display:block;width:34px;height:2px;margin:5px 0 0 auto;background:var(--acc);}
 
   /* objective */
@@ -938,7 +938,7 @@ const FX = { ca:0, dmg:0, low:0, kick:0 };   // live feedback values fed to the 
         void main(){
           vec2 c = vUv - .5;
           float r2 = dot(c, c);
-          vec2 off = c * (uCA + r2 * .010);                       // edge-weighted chromatic aberration
+          vec2 off = c * (uCA + r2 * .0045);                       // edge-weighted chromatic aberration
           vec3 col = vec3(texture2D(tDiffuse, vUv + off).r,
                           texture2D(tDiffuse, vUv).g,
                           texture2D(tDiffuse, vUv - off).b);
@@ -988,7 +988,7 @@ const modelsReady = (async () => {
             if (!tinted.has(o.material)){
               const m = o.material.clone(), nm = m.name;
               if (nm === 'green_glow'){
-                m.color.set(MGLOW).multiplyScalar(.25); m.emissive.set(MGLOW); m.emissiveIntensity = 2.6;
+                m.color.set(MGLOW).multiplyScalar(.25); m.emissive.set(MGLOW); m.emissiveIntensity = 1.7;
               } else if (nm === 'screen'){
                 m.color.set(MGLOW).multiplyScalar(.2); m.emissive.set(MGLOW); m.emissiveIntensity = 1.8;
               } else if (nm === 'glass'){
@@ -1536,7 +1536,7 @@ const FLOOR_SET = makePBR(L => {
     [[16,16],[240,16],[16,240],[240,240]].forEach(([dx,dy]) => bolt(L, x+dx, y+dy, 4.5));
   }
   // wet patches: mirror-smooth, darker, tread flattened
-  for (let i=0;i<9;i++){
+  for (let i=0;i<6;i++){
     const x = R()*512, y = R()*512, r = 24 + R()*52;
     for (let k=0;k<7;k++){
       const bx = x + (R()-.5)*r*1.1, by = y + (R()-.5)*r*.8, br = r*(.35 + R()*.4);
@@ -1749,7 +1749,7 @@ PILLARS.forEach(([x,z,s])=> addBox(x-s, x+s, z-s, z+s, WALL_H, null));
 
 // emissive light strips along walls (green; pulse red in alarm state)
 const strips = [];
-const fixtureMat = new THREE.MeshStandardMaterial({ color:0x333c30, roughness:.5, metalness:.5 });
+const fixtureMat = new THREE.MeshStandardMaterial({ color:0x2a3036, roughness:.45, metalness:.85, envMapIntensity:1.1 });
 ROOMS.forEach(r=>{
   for (let z = r.z2-3; z > r.z1+1; z -= 6){
     [r.x1+.07, r.x2-.07].forEach(x=>{
@@ -1764,7 +1764,7 @@ ROOMS.forEach(r=>{
 });
 
 // structural ribs: wall posts + ceiling beam every 6m
-const ribMat = new THREE.MeshStandardMaterial({ color:0x39423a, roughness:.55, metalness:.5 });
+const ribMat = patchSurface(new THREE.MeshStandardMaterial({ color:0x2e353b, roughness:.5, metalness:.85, envMapIntensity:1.1 }), { floorAO:.5, ceilAO:.3, aoH:1.2 });
 const unitBox = new THREE.BoxGeometry(1,1,1);
 ROOMS.forEach(r=>{
   for (let z = r.z2-4; z > r.z1+2; z -= 6){
@@ -1782,7 +1782,7 @@ ROOMS.forEach(r=>{
 
 // conduit pipes running the length of each room
 const pipeGeo = new THREE.CylinderGeometry(.07,.07,1,8);
-const pipeMat = new THREE.MeshStandardMaterial({ color:0x33403a, roughness:.45, metalness:.55 });
+const pipeMat = new THREE.MeshStandardMaterial({ color:0x2c343a, roughness:.4, metalness:.9, envMapIntensity:1.3 });
 ROOMS.forEach(r=>{
   const len = r.z2-r.z1, zc = (r.z1+r.z2)/2;
   [[r.x1+.24,3.4],[r.x1+.24,3.18],[r.x2-.24,3.3]].forEach(([x,y])=>{
@@ -1987,6 +1987,7 @@ const rifleFloor = new THREE.Group();
 }
 
 // view-model rifle (attached to camera after pickup)
+const VMLIGHT = { value:.03 };   // direct light reaching the viewmodel (raised by the muzzle flash)
 function dimViewmodel(group){
   // the view-model sits half a metre from the headlamp, so its lit materials are
   // darkened and de-glossed or physically-correct falloff blows them out white
@@ -1996,9 +1997,16 @@ function dimViewmodel(group){
     o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false;
     if (!seen.has(o.material)){
       const m = o.material.clone();
-      if (m.isMeshStandardMaterial && !(m.emissiveIntensity > 0 && m.emissive.getHex() > 0)){
-        m.color.multiplyScalar(.16); m.roughness = Math.max(.55, m.roughness);
-        m.metalness = Math.min(.55, m.metalness); m.envMapIntensity = .45;
+      if (m.isMeshStandardMaterial){
+        const glow = m.emissiveIntensity > 0 && m.emissive.getHex() > 0;
+        if (glow) m.emissiveIntensity = Math.min(m.emissiveIntensity, .55);
+        else { m.color.multiplyScalar(.5); m.roughness = Math.max(.42, m.roughness); m.metalness = Math.min(.75, m.metalness); m.envMapIntensity = .9; }
+        m.onBeforeCompile = sh => {
+          sh.uniforms.uVML = VMLIGHT;
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uVML;')
+            .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directDiffuse *= uVML; reflectedLight.directSpecular *= uVML;');
+        };
+        m.customProgramCacheKey = () => 'vm';
       }
       seen.set(o.material, m);
     }
@@ -3340,8 +3348,9 @@ function updateFX(dt){
   FX.dmg = Math.max(0, FX.dmg - dt*2.4);
   FX.kick *= Math.exp(-dt*12);
   FX.low += ((G.hp < 40 ? (40 - G.hp)/40 : 0) - FX.low) * Math.min(1, dt*3);
-  FX.ca = .0012 + FX.dmg*.011;
+  FX.ca = .0005 + FX.dmg*.011;
   // viewmodel muzzle flash sprite
+  VMLIGHT.value = .03 + VM.flash*.45;
   if (VM.flash > 0){
     VM.flash = Math.max(0, VM.flash - dt*16);
     muzzleSprite.visible = true;
@@ -3520,7 +3529,7 @@ G.mode = 'title';
 applyQuality(Q.level);
 
 // debug hook (console-only; not used by game logic)
-window.__LATM = { G, drones, yawObj, finishIntro, pickupRifle, damageDrone, MusicSys, postFX, Q, FX, applyQuality, THREE, scene, camera, renderer };
+window.__LATM = { showEndCard, plantComplete, CH, ROOMS, colliders, projectiles, G, drones, yawObj, finishIntro, pickupRifle, damageDrone, MusicSys, postFX, Q, FX, applyQuality, THREE, scene, camera, renderer };
 
 /* ============================================================
    Main loop
