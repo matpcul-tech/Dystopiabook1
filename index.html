@@ -502,6 +502,39 @@ el.startHint.innerHTML = IS_TOUCH
   : 'WASD: MOVE &nbsp;&bull;&nbsp; MOUSE: LOOK &nbsp;&bull;&nbsp; CLICK: FIRE &nbsp;&bull;&nbsp; E: INTERACT &nbsp;&bull;&nbsp; M: MUSIC';
 
 /* ============================================================
+   Quality system: auto-detects a tier, never trusts it blindly.
+   low  = phones / weak GPUs: direct render, no shadows, capped pixel ratio
+   med  = bloom + color grade post stack, no shadows
+   high = med + shadow-casting flashlight, FXAA, higher pixel ratio, more particles
+   Override: ?q=low|med|high  (or the GFX button on the title screen).
+   A runtime governor steps DOWN when frame rate is poor and steps UP once
+   on a phone that is clearly coasting. Choice is remembered per device.
+   ============================================================ */
+const QP = {
+  low:  { pr:1.15, shadows:0, post:0, bloom:0,   fxaa:0, dust:80,  accent:0, shafts:4,  decals:10, tex:256 },
+  med:  { pr:1.35, shadows:0, post:1, bloom:.45, fxaa:0, dust:170, accent:1, shafts:8,  decals:18, tex:512 },
+  high: { pr:1.75, shadows:1, post:1, bloom:.6,  fxaa:1, dust:320, accent:1, shafts:14, decals:28, tex:512 },
+};
+const QLEVELS = ['low','med','high'];
+const Q = (() => {
+  const url = new URLSearchParams(location.search).get('q');
+  let saved = null; try { saved = localStorage.getItem('latm_q'); } catch(e){}
+  const coarse = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+  const smallScreen = Math.min(screen.width, screen.height) < 700;
+  const mem = navigator.deviceMemory || 4, cores = navigator.hardwareConcurrency || 4;
+  let auto = 'high';
+  if ((IS_TOUCH && (coarse || smallScreen)) || mem <= 2 || cores <= 2) auto = 'low';
+  else if (mem <= 4 || cores <= 4) auto = 'med';
+  let cap = null; try { cap = localStorage.getItem('latm_qcap'); } catch(e){}
+  if (QLEVELS.includes(cap) && QLEVELS.indexOf(cap) < QLEVELS.indexOf(auto)) auto = cap;
+  const pick = [url, saved].find(v => QLEVELS.includes(v));
+  const level = pick || auto;
+  return { level, auto, forced: !!pick, userChoice: pick || 'auto', p: QP[level], scale: 1,
+           noUp: !!pick, phone: auto === 'low' && IS_TOUCH };
+})();
+const TEXN = Q.p.tex;
+
+/* ============================================================
    Audio — all synthesized, zero assets
    ============================================================ */
 const AudioSys = (() => {
@@ -743,17 +776,19 @@ const MusicSys = (() => {
 /* ============================================================
    Three.js scene
    ============================================================ */
-const renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, Q.p.pr));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.3;
+renderer.toneMappingExposure = CH.palette.exposure || 1.15;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(CH.palette.bg);
-scene.fog = new THREE.FogExp2(CH.palette.fog, 0.042);
+scene.fog = new THREE.FogExp2(CH.palette.fog, CH.palette.fogDensity || 0.038);
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 120);
 // Yaw/pitch rig: yawObj carries position + yaw, pitchObj carries pitch + camera.
@@ -761,16 +796,30 @@ const yawObj = new THREE.Object3D();
 const pitchObj = new THREE.Object3D();
 yawObj.add(pitchObj); pitchObj.add(camera); scene.add(yawObj);
 
-scene.add(new THREE.HemisphereLight(CH.palette.hemi, 0x11150f, 2.1));
-const dirLight = new THREE.DirectionalLight(0xd8ffe8, 0.9);
-dirLight.position.set(3, 10, 4);
-scene.add(dirLight);
-// player headlamp — carries most of the close-range lighting
-const lamp = new THREE.PointLight(CH.palette.lamp, 26, 26, 1.55);
+// Lighting rig. Few lights, each with a job (shader cost scales with light count):
+//   hemi   : cold ambient so shadows never go fully black
+//   flash  : shadow-casting helmet flashlight (high tier), carries the look
+//   lamp   : omni headlamp fill (the main light on low tier)
+//   accent : one coloured light that hops to the nearest ceiling fixture ahead
+//   muzzle : short warm flash on every shot
+//   core   : objective glow
+const hemi = new THREE.HemisphereLight(CH.palette.hemi, 0x08090b, CH.palette.hemiI || .75);
+scene.add(hemi);
+const lamp = new THREE.PointLight(CH.palette.lamp, 24, 26, 1.55);
 lamp.position.set(0, 0.1, 0);
 yawObj.add(lamp);
-// muzzle flash (intensity pulsed on fire, decays in updateFX)
-const muzzleLight = new THREE.PointLight(0xaaffcc, 0, 10, 2);
+const flash = new THREE.SpotLight(CH.palette.lamp, 70, 40, .95, .9, 1.5);
+flash.position.set(.12, -.08, .15);
+flash.target.position.set(0, -.05, -8);
+flash.castShadow = false; flash.visible = false;
+flash.shadow.bias = -.0004; flash.shadow.normalBias = .035;
+flash.shadow.camera.near = .25; flash.shadow.camera.far = 34;
+flash.shadow.radius = 3; flash.shadow.mapSize.set(1024, 1024);
+camera.add(flash); camera.add(flash.target);
+const accent = new THREE.PointLight(CH.palette.strip, 0, 15, 1.7);
+scene.add(accent);
+// muzzle flash light (intensity pulsed on fire, decays in updateFX)
+const muzzleLight = new THREE.PointLight(0xffb36b, 0, 11, 2);
 muzzleLight.position.set(.24, -.2, -.9);
 camera.add(muzzleLight);
 // hive core glow
@@ -779,11 +828,13 @@ coreLight.position.set(CH.objectivePos[0], CH.objectivePos[1] + 1, CH.objectiveP
 scene.add(coreLight);
 
 /* ============================================================
-   Cinematic post-processing: bloom + vignette + film grain.
-   Loaded dynamically — if the addons CDN fails or the device
-   is too slow (fps watchdog), the game renders plain instead.
+   Cinematic post-processing: bloom, FXAA, chromatic aberration on
+   hits, filmic color grade, vignette, grain.
+   Loaded dynamically; if the addons CDN fails or the quality tier is
+   low, the game renders directly (CSS vignette stands in).
    ============================================================ */
-const postFX = { enabled:false };
+const postFX = { enabled:false, loaded:false };
+const FX = { ca:0, dmg:0, low:0, kick:0 };   // live feedback values fed to the grade shader
 (async () => {
   try {
     const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
@@ -791,32 +842,49 @@ const postFX = { enabled:false };
     const { UnrealBloomPass }= await import('three/addons/postprocessing/UnrealBloomPass.js');
     const { ShaderPass }     = await import('three/addons/postprocessing/ShaderPass.js');
     const { OutputPass }     = await import('three/addons/postprocessing/OutputPass.js');
+    const { FXAAShader }     = await import('three/addons/shaders/FXAAShader.js');
+    const G_ = CH.palette.grade || { sh:[.90,.98,1.08], hi:[1.10,1.02,.90] };
     const composer = new EffectComposer(renderer);
     const rp = new RenderPass(scene, camera);
     const bloom = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight), .55, .35, .6);
+      new THREE.Vector2(window.innerWidth, window.innerHeight), .6, .45, .72);
+    const fxaa = new ShaderPass(FXAAShader);
     const grade = new ShaderPass({
-      uniforms: { tDiffuse:{value:null}, uTime:{value:0} },
+      uniforms: {
+        tDiffuse:{value:null}, uTime:{value:0}, uCA:{value:0}, uDmg:{value:0}, uLow:{value:0},
+        uShadow:{value:new THREE.Vector3(...G_.sh)}, uHigh:{value:new THREE.Vector3(...G_.hi)},
+      },
       vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
       fragmentShader: `
-        uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;
+        uniform sampler2D tDiffuse; uniform float uTime, uCA, uDmg, uLow;
+        uniform vec3 uShadow, uHigh; varying vec2 vUv;
         float rnd(vec2 c){ return fract(sin(dot(c, vec2(12.9898,78.233)))*43758.5453); }
         void main(){
-          vec3 col = texture2D(tDiffuse, vUv).rgb;
-          float d = distance(vUv, vec2(.5));
-          col *= 1.0 - smoothstep(.42, .95, d) * .42;                          // vignette
-          col += (rnd(vUv*vec2(1287.,731.) + mod(uTime,9.)) - .5) * .032;      // film grain
-          col = mix(vec3(dot(col, vec3(.299,.587,.114))), col, 1.07);          // saturation
+          vec2 c = vUv - .5;
+          float r2 = dot(c, c);
+          vec2 off = c * (uCA + r2 * .010);                       // edge-weighted chromatic aberration
+          vec3 col = vec3(texture2D(tDiffuse, vUv + off).r,
+                          texture2D(tDiffuse, vUv).g,
+                          texture2D(tDiffuse, vUv - off).b);
+          float l = dot(col, vec3(.2126,.7152,.0722));
+          col *= mix(uShadow, uHigh, smoothstep(.08, .75, l));    // split toning: cold shadows, warm highlights
+          col = (col - .5) * 1.10 + .5;                           // contrast
+          col = max(col, 0.);
+          float sat = 1.06 - uLow * .75;
+          col = mix(vec3(dot(col, vec3(.2126,.7152,.0722))), col, sat);
+          col = mix(col, col * vec3(1.35,.35,.35), uDmg * .55);   // hit tint
+          col *= 1.0 - smoothstep(.30, .95, length(c) * 1.28) * (.55 + uLow * .25 + uDmg * .3);   // vignette
+          col += (rnd(vUv*vec2(1287.,731.) + mod(uTime,9.)) - .5) * .045;     // film grain
           gl_FragColor = vec4(col, 1.);
         }`,
     });
-    composer.addPass(rp); composer.addPass(bloom); composer.addPass(new OutputPass()); composer.addPass(grade);
-    postFX.composer = composer; postFX.renderPass = rp; postFX.grade = grade; postFX.bloom = bloom;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-    composer.setSize(window.innerWidth, window.innerHeight);
-    postFX.enabled = true;
-  } catch (e) { /* addons unavailable — plain rendering */ }
+    composer.addPass(rp); composer.addPass(bloom); composer.addPass(new OutputPass());
+    composer.addPass(fxaa); composer.addPass(grade);
+    Object.assign(postFX, { composer, renderPass:rp, grade, bloom, fxaa, loaded:true });
+    if (typeof applyQuality === 'function') applyQuality(Q.level);
+  } catch (e) { /* addons unavailable: plain rendering */ }
 })();
+
 /* ============================================================
    GLB hero models (author-generated). Loaded async; the code-built
    models remain as fallbacks if a file or the loader fails.
@@ -866,10 +934,77 @@ const modelsReady = (async () => {
   } catch (e) { /* loader unavailable — procedural models remain */ }
 })();
 
+const GFX = { dust:null, shafts:[], glows:[] };
+function applyQuality(level){
+  level = QLEVELS.includes(level) ? level : 'low';
+  Q.level = level;
+  const p = Q.p = QP[level];
+  const w = window.innerWidth, h = window.innerHeight;
+  const pr = Math.min(window.devicePixelRatio, p.pr * Q.scale);
+  renderer.setPixelRatio(pr);
+  renderer.setSize(w, h);
+  const spot = !!p.shadows;
+  flash.visible = spot; flash.castShadow = spot;
+  lamp.intensity = spot ? 9 : 24;
+  accent.visible = !!p.accent;
+  if (GFX.dust) GFX.dust.geometry.setDrawRange(0, p.dust);
+  GFX.shafts.forEach((m,i) => { m.visible = i < p.shafts; });
+  postFX.enabled = postFX.loaded && !!p.post;
+  if (postFX.loaded){
+    postFX.composer.setPixelRatio(pr);
+    postFX.composer.setSize(w, h);
+    postFX.bloom.strength = p.bloom;
+    postFX.fxaa.enabled = !!p.fxaa;
+    postFX.fxaa.material.uniforms.resolution.value.set(1/(w*pr), 1/(h*pr));
+  }
+  document.body.classList.toggle('postfx', postFX.enabled);
+  G._fpsT = 0; G._fpsN = 0; G._fpsSkip = 1; G._fpsGood = 0; G._fpsBad = 0;
+  if (typeof refreshGfxButton === 'function') refreshGfxButton();
+}
+
+// Runtime governor: samples fps in 2.5s windows while playing.
+// Two bad windows in a row step quality down (and remember it for this device).
+// A phone that sits at 57+ fps for three windows is promoted one tier, once.
+function governor(nowT){
+  if (!G._fpsT){ G._fpsT = nowT; G._fpsN = 0; return; }
+  G._fpsN++;
+  const span = nowT - G._fpsT;
+  if (span < 2500) return;
+  const fps = G._fpsN / (span / 1000);
+  G._fpsT = nowT; G._fpsN = 0;
+  if (span > 6000) return;               // tab was hidden or a long hitch; ignore
+  if (G._fpsSkip > 0){ G._fpsSkip--; return; }
+  Q.fps = fps;
+  const floorFps = IS_TOUCH ? 30 : 42;
+  if (fps < floorFps){
+    G._fpsGood = 0;
+    if (++G._fpsBad < 2) return;
+    G._fpsBad = 0;
+    Q.noUp = true;
+    const i = QLEVELS.indexOf(Q.level);
+    if (i > 0){
+      const nl = QLEVELS[i-1];
+      try { localStorage.setItem('latm_qcap', nl); } catch(e){}
+      applyQuality(nl);
+    } else if (Q.scale > .62){
+      Q.scale = Math.max(.62, Q.scale * .85);   // last resort: render fewer pixels
+      applyQuality('low');
+    }
+  } else if (fps > 56 && !Q.noUp){
+    G._fpsBad = 0;
+    const cap = Q.phone ? 'med' : 'high';
+    if (++G._fpsGood >= 3 && QLEVELS.indexOf(Q.level) < QLEVELS.indexOf(cap)){
+      Q.noUp = true;   // one promotion only: no flip-flopping
+      applyQuality(QLEVELS[QLEVELS.indexOf(Q.level) + 1]);
+    }
+  } else { G._fpsBad = 0; }
+}
+
 function renderFrame(sc, cm){
   if (postFX.enabled){
     postFX.renderPass.scene = sc; postFX.renderPass.camera = cm;
-    postFX.grade.uniforms.uTime.value = G.time;
+    const u = postFX.grade.uniforms;
+    u.uTime.value = G.time; u.uCA.value = FX.ca; u.uDmg.value = FX.dmg; u.uLow.value = FX.low;
     postFX.composer.render();
   } else {
     renderer.render(sc, cm);
@@ -879,8 +1014,7 @@ function renderFrame(sc, cm){
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  if (postFX.enabled) postFX.composer.setSize(window.innerWidth, window.innerHeight);
+  applyQuality(Q.level);
 });
 
 /* ============================================================
@@ -2619,8 +2753,10 @@ document.addEventListener('visibilitychange', () => {
 requestAnimationFrame(()=>{ el.fade.style.opacity = 0; });
 G.mode = 'title';
 
+applyQuality(Q.level);
+
 // debug hook (console-only; not used by game logic)
-window.__LATM = { G, drones, yawObj, finishIntro, pickupRifle, damageDrone, MusicSys, postFX };
+window.__LATM = { G, drones, yawObj, finishIntro, pickupRifle, damageDrone, MusicSys, postFX, Q, FX, applyQuality, THREE, scene, camera, renderer };
 
 /* ============================================================
    Main loop
@@ -2661,18 +2797,8 @@ function loop(){
     updateRadio(dt);
     updateDrones(dt);
   }
-  // fps watchdog: if a device can't hold ~40fps with post-fx, shed it
-  if (postFX.enabled && G.mode === 'play' && !(window.__LATM && window.__LATM.capture)){
-    G._fpsN = (G._fpsN || 0) + 1;
-    if (!G._fpsT) G._fpsT = nowT;
-    if (nowT - G._fpsT > 3000){
-      if (G._fpsN / ((nowT - G._fpsT) / 1000) < 40){
-        postFX.enabled = false;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      }
-      G._fpsN = 0; G._fpsT = nowT;
-    }
-  }
+  // quality governor (disabled during scripted capture)
+  if (G.mode === 'play' && !(window.__LATM && window.__LATM.capture)) governor(nowT);
   updateFX(dt);
   renderFrame(scene, camera);
 }
