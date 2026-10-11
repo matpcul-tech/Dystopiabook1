@@ -49,3 +49,41 @@ of the `<script type="module">` in `index.html`:
 - Service workers are unregistered on load (caching fix)
 
 Out of scope: squad NPCs, multiplayer, multiple weapons, saves, voice.
+
+## Graphics (modern look)
+
+The renderer was upgraded from a flat retro look to a gritty, cinematic one while
+keeping the same single-file, no-build architecture and the same gameplay.
+
+- **Materials:** every wall, floor, ceiling, door and crate uses procedural PBR
+  textures generated on a canvas at load (albedo, normal map derived from a painted
+  height map, packed roughness and metalness, emissive). Hex plating, louvered vents
+  with light leaking through, hazard bands, wet patches and bolt detail. No image assets.
+- **Lighting:** cold ambient, a shadow-casting helmet flashlight (high tier), an omni
+  headlamp, a coloured accent light that hops between ceiling fixtures, muzzle flash light
+  and the objective glow. Light shafts, drifting dust, glow halos at fixtures, flowing
+  conduits. World-space ambient occlusion and wet-floor roughness are done in shader.
+- **Reflections:** `sky.jpg` plus machine light panels are baked into a PMREM
+  environment map, so steel and wet floor mirror the hive lights.
+- **Post:** ACES filmic tone mapping, bloom, FXAA, split-tone color grade per chapter,
+  vignette, film grain, chromatic aberration that spikes on hits, desaturation at low health.
+- **Combat feel:** viewmodel recoil, sway and bob, muzzle flash sprite, ejected brass,
+  tracers, pooled spark particles, bullet scorch decals, enemy hit flashes and eye halos,
+  death bursts, hit markers, directional damage indicator, camera kick and roll.
+- **HUD:** minimal ring gauges, thin crosshair that opens on fire, objective marker,
+  restyled radio feed, touch controls and title screens.
+
+### Quality tiers
+
+| Tier | Intended for | What it does |
+|------|--------------|--------------|
+| low  | phones, weak GPUs | direct render (no post), pixel ratio capped at 1.15, no shadows, 80 dust motes, 4 light shafts, 256px textures |
+| med  | mid laptops, phones that are coasting | bloom + color grade, pixel ratio 1.35, no shadows |
+| high | desktops | shadow-casting flashlight, FXAA, pixel ratio up to 1.75, full particle counts |
+
+The tier is picked automatically (touch phones start on low, small or old desktops on
+med, everything else on high). A governor measures fps while playing: two bad 2.5 second
+windows in a row step the tier down (remembered on the device), and a phone that holds
+57+ fps for three windows is promoted one tier, once. As a last resort on low it renders
+at fewer pixels. Override with `?q=low|med|high` or the GRAPHICS button on the title screen
+(AUTO, LOW, MED, HIGH).

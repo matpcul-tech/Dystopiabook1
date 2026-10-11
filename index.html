@@ -1018,8 +1018,8 @@ const modelsReady = (async () => {
               } else if (nm === 'subject'){
                 m.roughness = .85; m.color.multiplyScalar(.5);
               } else {
-                m.color.multiply(new THREE.Color(.9,.96,1.08));
-                m.roughness = Math.min(.62, Math.max(.36, m.roughness)); m.metalness = .8; m.envMapIntensity = 1.5;
+                m.color.multiply(new THREE.Color(.62,.68,.78));
+                m.roughness = Math.min(.7, Math.max(.5, m.roughness + .05)); m.metalness = .8; m.envMapIntensity = 1.3;
               }
               patchSurface(m, { floorAO:.6, ceilAO:0, aoH:1.0, noise:false });
               tinted.set(o.material, m);
@@ -1054,6 +1054,8 @@ function applyQuality(level){
   renderer.setPixelRatio(pr);
   renderer.setSize(w, h);
   const spot = !!p.shadows;
+  hemi.intensity = (CH.palette.hemiI || .75) * (spot ? 1 : 1.5);
+  renderer.toneMappingExposure = (CH.palette.exposure || 1.15) * (p.post || spot ? 1 : 1.12);
   flash.visible = spot; flash.castShadow = spot;
   lamp.intensity = spot ? 14 : 42;
   accent.visible = !!p.accent;
@@ -1124,7 +1126,8 @@ function renderFrame(sc, cm){
 function layoutViewmodel(){
   // portrait phones see a narrow horizontal field, so pull the rifle toward the centre line
   const portrait = window.innerWidth / window.innerHeight < .9;
-  VM.base.set(portrait ? .09 : .2, portrait ? -.2 : -.23, portrait ? -.46 : -.5);
+  VM.base.set(portrait ? .075 : .2, portrait ? -.2 : -.23, portrait ? -.46 : -.5);
+  viewRifle.scale.setScalar(portrait ? .78 : 1);
 }
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth/window.innerHeight;
