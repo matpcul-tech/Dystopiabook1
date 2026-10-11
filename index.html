@@ -5,58 +5,113 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>LATM: Hive Infiltration</title>
 <meta name="description" content="A free playable episode set in the world of Life After The Machines. Awaken, fight through the hive, reach the core.">
+<meta name="theme-color" content="#04060a">
+<link rel="icon" href="data:,">
 <style>
   :root{
-    --grn:#39ff88; --grn-dim:#1a7a44; --red:#ff3344; --bg:#020604;
+    --fg:#e8eff4; --dim:#7f8d98; --acc:#ff6a2a; --red:#ff3b3b; --warn:#ffd23f; --bg:#04060a;
+    --grn:var(--fg); --grn-dim:rgba(232,239,244,.28);
+    --font:"Bahnschrift","Roboto Condensed","sans-serif-condensed","Arial Narrow","Segoe UI",system-ui,sans-serif;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
-    font-family:"Courier New",ui-monospace,monospace;color:var(--grn);
+    font-family:var(--font);color:var(--fg);font-weight:500;text-transform:uppercase;
     touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none;}
   canvas{display:block;}
   #hud,#overlays{position:fixed;inset:0;pointer-events:none;}
 
-  /* crosshair */
-  #crosshair{position:absolute;left:50%;top:50%;width:14px;height:14px;
-    transform:translate(-50%,-50%);opacity:.85;display:none;}
-  #crosshair:before,#crosshair:after{content:"";position:absolute;background:var(--grn);}
-  #crosshair:before{left:6px;top:0;width:2px;height:14px;}
-  #crosshair:after{left:0;top:6px;width:14px;height:2px;}
+  /* low-tier stand-in for the post stack vignette (hidden when the grade pass runs) */
+  #vig{position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.62) 100%);}
+  body.postfx #vig{display:none;}
 
-  /* health */
-  #healthWrap{position:absolute;left:16px;top:14px;width:180px;display:none;}
-  #healthLabel{font-size:10px;letter-spacing:2px;opacity:.8;margin-bottom:3px;}
-  #healthBar{height:10px;border:1px solid var(--grn-dim);background:rgba(0,20,8,.6);}
-  #healthFill{height:100%;width:100%;background:var(--grn);box-shadow:0 0 8px var(--grn);transition:width .15s;}
+  /* crosshair: four ticks that open up on fire, center dot */
+  #crosshair{position:absolute;left:50%;top:50%;width:0;height:0;display:none;
+    --gap:7px;--len:8px;transition:none;}
+  #crosshair i{position:absolute;background:rgba(255,255,255,.92);box-shadow:0 0 3px rgba(0,0,0,.8);
+    transition:transform .09s ease-out;}
+  #crosshair i:nth-child(1){width:2px;height:var(--len);left:-1px;top:calc(-1 * (var(--gap) + var(--len)));}
+  #crosshair i:nth-child(2){width:2px;height:var(--len);left:-1px;top:var(--gap);}
+  #crosshair i:nth-child(3){height:2px;width:var(--len);top:-1px;left:calc(-1 * (var(--gap) + var(--len)));}
+  #crosshair i:nth-child(4){height:2px;width:var(--len);top:-1px;left:var(--gap);}
+  #crosshair:after{content:"";position:absolute;left:-1.5px;top:-1.5px;width:3px;height:3px;border-radius:50%;
+    background:var(--acc);box-shadow:0 0 6px var(--acc);}
+  #crosshair.fire{--gap:12px;}
+  #crosshair.target i{background:var(--red);}
+
+  /* hit marker */
+  #hitmarker{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0;}
+  #hitmarker:before,#hitmarker:after{content:"";position:absolute;left:50%;top:50%;width:2px;height:26px;
+    margin:-13px 0 0 -1px;background:#fff;transform:rotate(45deg);box-shadow:0 0 4px rgba(0,0,0,.9);
+    -webkit-mask:linear-gradient(#000 0 32%,transparent 32% 68%,#000 68%);mask:linear-gradient(#000 0 32%,transparent 32% 68%,#000 68%);}
+  #hitmarker:after{transform:rotate(-45deg);}
+  #hitmarker.show{animation:hm .18s ease-out;}
+  #hitmarker.kill:before,#hitmarker.kill:after{background:var(--red);}
+  @keyframes hm{0%{opacity:1;transform:scale(1.5)}100%{opacity:0;transform:scale(.85)}}
+
+  /* health ring (top left) */
+  #healthWrap{position:absolute;left:max(14px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));
+    width:150px;height:56px;display:none;}
+  #healthWrap svg{position:absolute;left:0;top:0;width:56px;height:56px;transform:rotate(-90deg);}
+  #healthWrap circle{fill:none;stroke-width:3;}
+  #healthWrap .trk{stroke:rgba(232,239,244,.16);}
+  #healthFill{stroke:var(--fg);stroke-linecap:butt;stroke-dasharray:138.2;stroke-dashoffset:0;
+    filter:drop-shadow(0 0 3px rgba(255,255,255,.35));transition:stroke-dashoffset .12s linear;}
+  #healthWrap.low #healthFill{stroke:var(--red);filter:drop-shadow(0 0 5px var(--red));}
+  #healthWrap.low{animation:lowpulse .8s infinite;}
+  @keyframes lowpulse{0%,100%{opacity:1}50%{opacity:.55}}
+  #healthNum{position:absolute;left:0;top:0;width:56px;height:56px;line-height:56px;text-align:center;
+    font-size:17px;letter-spacing:1px;font-weight:700;}
+  #healthLabel{position:absolute;left:66px;top:14px;font-size:10px;letter-spacing:3px;color:var(--dim);}
+  #healthLabel:after{content:"";display:block;width:34px;height:2px;margin-top:5px;background:var(--acc);}
+
+  /* weapon readout (top right): heat arc + infinite cell */
+  #ammoWrap{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));
+    width:150px;height:56px;display:none;text-align:right;}
+  #ammoWrap svg{position:absolute;right:0;top:0;width:56px;height:56px;transform:rotate(-90deg) scaleY(-1);}
+  #ammoWrap circle{fill:none;stroke-width:3;}
+  #ammoWrap .trk{stroke:rgba(232,239,244,.16);}
+  #heatFill{stroke:var(--acc);stroke-dasharray:138.2;stroke-dashoffset:138.2;filter:drop-shadow(0 0 4px var(--acc));}
+  #ammoInf{position:absolute;right:0;top:0;width:56px;height:56px;line-height:56px;text-align:center;font-size:24px;}
+  #ammoName{position:absolute;right:66px;top:14px;font-size:10px;letter-spacing:3px;color:var(--dim);}
+  #ammoName:after{content:"";display:block;width:34px;height:2px;margin:5px 0 0 auto;background:var(--acc);}
 
   /* objective */
-  #objective{position:absolute;top:14px;left:50%;transform:translateX(-50%);
-    font-size:11px;letter-spacing:3px;opacity:.75;text-align:center;display:none;white-space:nowrap;}
+  #objective{position:absolute;top:max(18px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    font-size:12px;letter-spacing:4px;text-align:center;display:none;max-width:44vw;
+    text-shadow:0 1px 6px rgba(0,0,0,.9);color:var(--fg);}
+  #objective:before{content:"";display:inline-block;width:7px;height:7px;background:var(--acc);
+    transform:rotate(45deg);margin-right:10px;vertical-align:1px;box-shadow:0 0 8px var(--acc);}
 
   /* radio feed */
-  #radio{position:absolute;left:16px;bottom:110px;max-width:78%;font-size:14px;
-    line-height:1.5;text-shadow:0 0 6px rgba(57,255,136,.7);}
-  .radioLine{opacity:0;transition:opacity .3s;margin-top:6px;}
-  .radioLine .who{color:#baffd9;font-weight:bold;letter-spacing:1px;}
+  #radio{position:absolute;left:max(16px,env(safe-area-inset-left));bottom:104px;max-width:min(560px,74%);font-size:14px;
+    line-height:1.35;letter-spacing:.8px;text-transform:none;font-weight:500;}
+  .radioLine{opacity:0;transition:opacity .3s;margin-top:6px;padding:5px 12px 6px;
+    border-left:2px solid var(--acc);background:linear-gradient(90deg,rgba(4,6,10,.72),rgba(4,6,10,0));
+    text-shadow:0 1px 4px rgba(0,0,0,.9);}
+  .radioLine .who{color:var(--acc);font-weight:700;letter-spacing:2px;font-size:12px;text-transform:uppercase;}
   .radioLine.show{opacity:1;}
 
   /* center prompt */
-  #prompt{position:absolute;left:50%;bottom:26%;transform:translateX(-50%);
-    font-size:14px;letter-spacing:2px;padding:8px 14px;border:1px solid var(--grn-dim);
-    background:rgba(0,15,6,.7);display:none;text-align:center;animation:pulse 1.2s infinite;}
-  @keyframes pulse{0%,100%{opacity:.95}50%{opacity:.55}}
+  #prompt{position:absolute;left:50%;bottom:27%;transform:translateX(-50%);
+    font-size:13px;letter-spacing:3px;padding:9px 18px;border:1px solid var(--grn-dim);border-left:3px solid var(--acc);
+    background:rgba(4,6,10,.62);display:none;text-align:center;animation:pulse 1.4s infinite;white-space:nowrap;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 
   /* plant progress */
-  #plantWrap{position:absolute;left:50%;bottom:34%;transform:translateX(-50%);
-    width:220px;display:none;}
-  #plantLabel{font-size:11px;letter-spacing:2px;text-align:center;margin-bottom:4px;}
-  #plantBar{height:8px;border:1px solid var(--grn-dim);background:rgba(0,20,8,.6);}
-  #plantFill{height:100%;width:0%;background:var(--grn);box-shadow:0 0 8px var(--grn);}
+  #plantWrap{position:absolute;left:50%;bottom:34%;transform:translateX(-50%);width:240px;display:none;}
+  #plantLabel{font-size:11px;letter-spacing:4px;text-align:center;margin-bottom:6px;}
+  #plantBar{height:3px;background:rgba(232,239,244,.18);}
+  #plantFill{height:100%;width:0%;background:var(--acc);box-shadow:0 0 10px var(--acc);}
 
-  /* vignettes / fades */
+  /* damage feedback */
   #dmgVignette{position:absolute;inset:0;opacity:0;
-    background:radial-gradient(ellipse at center,transparent 55%,rgba(255,20,40,.55) 100%);
-    transition:opacity .2s;}
+    background:radial-gradient(ellipse at center,transparent 45%,rgba(220,10,20,.62) 100%);
+    transition:opacity .22s;}
+  #dmgDir{position:absolute;left:50%;top:50%;width:min(60vw,60vh);height:min(60vw,60vh);opacity:0;
+    transform:translate(-50%,-50%);transition:opacity .5s;}
+  #dmgDir:before{content:"";position:absolute;left:0;right:0;top:0;height:30%;
+    background:radial-gradient(ellipse 34% 60% at 50% 0%,rgba(255,40,30,.95),rgba(255,40,30,0) 100%);}
   #fade{position:absolute;inset:0;background:#000;opacity:1;transition:opacity 1s;}
   #redFade{position:absolute;inset:0;background:#2a0006;opacity:0;transition:opacity .8s;}
 
@@ -64,67 +119,83 @@
   #stickZone,#lookZone{position:absolute;top:0;bottom:0;pointer-events:auto;display:none;}
   #stickZone{left:0;width:45%;}
   #lookZone{right:0;width:55%;}
-  #stickBase{position:absolute;width:110px;height:110px;border:1px solid rgba(57,255,136,.4);
-    border-radius:50%;display:none;transform:translate(-50%,-50%);}
-  #stickNub{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;
-    background:rgba(57,255,136,.25);border:1px solid var(--grn);transform:translate(-50%,-50%);}
-  #fireBtn{position:absolute;right:24px;bottom:34px;width:86px;height:86px;border-radius:50%;
-    border:2px solid var(--grn);background:rgba(0,40,16,.4);color:var(--grn);
-    font-family:inherit;font-size:11px;letter-spacing:2px;display:none;pointer-events:auto;
-    text-shadow:0 0 6px var(--grn);}
-  #fireBtn:active{background:rgba(57,255,136,.3);}
-  #plantBtn{position:absolute;right:28px;bottom:136px;width:78px;height:78px;border-radius:50%;
-    border:2px solid #ffd23f;background:rgba(60,45,0,.4);color:#ffd23f;
-    font-family:inherit;font-size:10px;letter-spacing:1px;display:none;pointer-events:auto;}
+  #stickBase{position:absolute;width:116px;height:116px;border:1.5px solid rgba(232,239,244,.38);
+    border-radius:50%;display:none;transform:translate(-50%,-50%);background:rgba(4,6,10,.22);}
+  #stickNub{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;
+    background:rgba(232,239,244,.2);border:1.5px solid var(--fg);transform:translate(-50%,-50%);}
+  #fireBtn{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(34px,env(safe-area-inset-bottom));width:92px;height:92px;border-radius:50%;
+    border:1.5px solid rgba(232,239,244,.55);background:rgba(4,6,10,.38);color:var(--fg);
+    font-family:inherit;font-size:11px;letter-spacing:3px;display:none;pointer-events:auto;font-weight:700;}
+  #fireBtn:after{content:"";position:absolute;inset:26px;border:2px solid var(--acc);border-radius:50%;opacity:.9;}
+  #fireBtn:active{background:rgba(255,106,42,.28);border-color:var(--acc);}
+  #plantBtn{position:absolute;right:max(30px,env(safe-area-inset-right));bottom:150px;width:78px;height:78px;border-radius:50%;
+    border:1.5px solid var(--warn);background:rgba(4,6,10,.45);color:var(--warn);
+    font-family:inherit;font-size:11px;letter-spacing:2px;display:none;pointer-events:auto;font-weight:700;}
 
   /* screens */
-  .screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;text-align:center;pointer-events:auto;padding:24px;}
-  .screen h1{font-size:clamp(20px,5vw,38px);letter-spacing:6px;text-shadow:0 0 18px var(--grn);}
-  .screen h2{font-size:clamp(12px,2.6vw,16px);letter-spacing:4px;opacity:.7;margin-top:10px;}
-  .btn{margin-top:34px;padding:14px 34px;border:1px solid var(--grn);background:rgba(0,30,12,.5);
-    color:var(--grn);font-family:inherit;font-size:14px;letter-spacing:3px;cursor:pointer;
-    text-shadow:0 0 8px var(--grn);text-decoration:none;display:inline-block;}
-  .btn:hover{background:rgba(57,255,136,.15);}
-  .btn.amber{border-color:#ffd23f;color:#ffd23f;text-shadow:0 0 8px #ffd23f;}
-  #startHint{margin-top:24px;font-size:11px;letter-spacing:2px;opacity:.5;line-height:1.8;}
+  .screen{position:absolute;inset:0;
+    background:radial-gradient(ellipse at 50% 115%,rgba(255,106,42,.16),transparent 58%),
+      linear-gradient(180deg,#05070b 0%,#0a0d12 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:auto;padding:24px;}
+  .screen:before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);}
+  .screen h1{font-size:clamp(26px,6.2vw,54px);letter-spacing:.28em;font-weight:700;
+    text-shadow:0 0 26px rgba(255,106,42,.35);line-height:1.1;}
+  .screen h1:after{content:"";display:block;width:64px;height:3px;margin:18px auto 0;background:var(--acc);box-shadow:0 0 12px var(--acc);}
+  .screen h2{font-size:clamp(12px,2.6vw,16px);letter-spacing:.34em;color:var(--dim);margin-top:16px;font-weight:500;}
+  .btn{margin-top:30px;padding:14px 38px;border:1px solid rgba(232,239,244,.5);background:rgba(232,239,244,.04);
+    color:var(--fg);font-family:inherit;font-size:14px;letter-spacing:.3em;cursor:pointer;font-weight:700;
+    text-decoration:none;display:inline-block;text-transform:uppercase;
+    clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);}
+  .btn:hover{background:rgba(255,106,42,.18);border-color:var(--acc);}
+  .btn.amber{border-color:var(--acc);color:var(--acc);background:rgba(255,106,42,.08);}
+  .btn.small{font-size:11px;padding:9px 18px;margin-top:12px;opacity:.85;}
+  #startHint{margin-top:26px;font-size:11px;letter-spacing:.24em;color:var(--dim);line-height:1.9;}
 
   /* intro */
   #intro{background:#000;display:none;}
-  #introText{font-size:clamp(15px,3.4vw,22px);letter-spacing:2px;line-height:2;
-    max-width:640px;min-height:4em;opacity:0;transition:opacity 1.2s;color:#cfeede;
-    text-shadow:0 0 10px rgba(57,255,136,.5);}
+  #introText{font-size:clamp(15px,3.4vw,22px);letter-spacing:.14em;line-height:1.9;
+    max-width:640px;min-height:4em;opacity:0;transition:opacity 1.2s;color:#dfe8ee;text-transform:none;
+    text-shadow:0 2px 12px rgba(0,0,0,.9);}
   #skipBtn{position:absolute;right:18px;bottom:18px;padding:8px 16px;border:1px solid var(--grn-dim);
-    background:transparent;color:var(--grn);font-family:inherit;font-size:11px;letter-spacing:2px;
+    background:transparent;color:var(--fg);font-family:inherit;font-size:11px;letter-spacing:.24em;
     cursor:pointer;opacity:0;transition:opacity .6s;}
 
   /* end card */
-  #endCard{display:none;background:radial-gradient(ellipse at center,#03140a 0%,#000 75%);}
-  #endTitle{font-size:clamp(16px,4vw,26px);letter-spacing:5px;margin-bottom:26px;
-    text-shadow:0 0 14px var(--grn);}
-  #cover{width:min(200px,44vw);aspect-ratio:2/3;border:1px solid var(--grn);
-    background:linear-gradient(160deg,#04170c 0%,#010804 60%,#04170c 100%);
-    box-shadow:0 0 30px rgba(57,255,136,.35), inset 0 0 40px rgba(57,255,136,.12);
+  #endCard{display:none;background:radial-gradient(ellipse at center,#12100e 0%,#030405 75%);}
+  #endTitle{font-size:clamp(18px,4.4vw,30px);letter-spacing:.24em;margin-bottom:26px;font-weight:700;
+    text-shadow:0 0 18px rgba(255,106,42,.35);}
+  #cover{width:min(200px,44vw);aspect-ratio:2/3;border:1px solid rgba(232,239,244,.5);
+    background:linear-gradient(160deg,#10151a 0%,#05070a 60%,#10151a 100%);
+    box-shadow:0 10px 50px rgba(0,0,0,.8), 0 0 40px rgba(255,106,42,.18);
     position:relative;overflow:hidden;margin:0 auto;}
   #coverImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;}
   #coverFallback{position:absolute;inset:0;display:flex;flex-direction:column;
     justify-content:space-between;padding:16px 12px;}
-  #cover .cTop{font-size:9px;letter-spacing:3px;opacity:.7;}
-  #cover .cTitle{font-size:clamp(13px,3vw,17px);letter-spacing:2px;line-height:1.6;
-    text-shadow:0 0 10px var(--grn);}
-  #cover .cGlyph{font-size:34px;opacity:.9;text-shadow:0 0 16px var(--grn);}
-  #cover .cBottom{font-size:9px;letter-spacing:3px;opacity:.7;}
-  #endSub{margin-top:22px;font-size:12px;letter-spacing:2px;opacity:.75;max-width:480px;line-height:1.8;}
+  #cover .cTop{font-size:9px;letter-spacing:.3em;opacity:.7;}
+  #cover .cTitle{font-size:clamp(13px,3vw,17px);letter-spacing:.18em;line-height:1.6;}
+  #cover .cGlyph{font-size:34px;opacity:.9;color:var(--acc);}
+  #cover .cBottom{font-size:9px;letter-spacing:.3em;opacity:.7;}
+  #endSub{margin-top:22px;font-size:13px;letter-spacing:.14em;color:#b9c4cc;max-width:520px;line-height:1.8;text-transform:none;}
   #endBtns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;}
 </style>
 </head>
 <body>
 
+<div id="vig"></div>
 <div id="hud">
-  <div id="crosshair"></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker"></div>
+  <div id="dmgDir"></div>
   <div id="healthWrap">
+    <svg viewBox="0 0 56 56"><circle class="trk" cx="28" cy="28" r="22"></circle><circle id="healthFill" cx="28" cy="28" r="22"></circle></svg>
+    <div id="healthNum">100</div>
     <div id="healthLabel">VITALS</div>
-    <div id="healthBar"><div id="healthFill"></div></div>
+  </div>
+  <div id="ammoWrap">
+    <svg viewBox="0 0 56 56"><circle class="trk" cx="28" cy="28" r="22"></circle><circle id="heatFill" cx="28" cy="28" r="22"></circle></svg>
+    <div id="ammoInf">&#8734;</div>
+    <div id="ammoName">PULSE RIFLE</div>
   </div>
   <div id="objective"></div>
   <div id="radio"></div>
@@ -458,6 +529,7 @@ const CHAPTERS = {
 const CH = CHAPTERS[(location.hash || '').replace('#','')] || CHAPTERS.ch1;
 const RADIO = CH.radio;
 const INTRO_LINES = CH.introLines;
+const MGLOW = CH.palette.strip;   // machine light colour of this chapter
 
 /* ============================================================
    DOM refs & tiny helpers
@@ -470,6 +542,7 @@ const el = {
   crosshair:$('crosshair'), healthWrap:$('healthWrap'), healthFill:$('healthFill'),
   objective:$('objective'), radio:$('radio'), prompt:$('prompt'),
   plantWrap:$('plantWrap'), plantFill:$('plantFill'),
+  hit:$('hitmarker'), dmgDir:$('dmgDir'), healthNum:$('healthNum'), heatFill:$('heatFill'), ammoWrap:$('ammoWrap'),
   dmg:$('dmgVignette'), stickZone:$('stickZone'), lookZone:$('lookZone'),
   stickBase:$('stickBase'), stickNub:$('stickNub'), fireBtn:$('fireBtn'), plantBtn:$('plantBtn'),
 };
@@ -907,14 +980,26 @@ const modelsReady = (async () => {
     await Promise.all(defs.map(([kind, url, k, oy, oz, pts]) => new Promise(res => {
       loader.load(url, g => {
         const inner = g.scene;
-        // these GLBs ship untextured (near-white base) — tint to gunmetal
+        // keep the authored PBR materials; push them toward cold steel and recolour
+        // the green emitters to this chapter's machine light
         const tinted = new Map();
         inner.traverse(o => {
           if (o.isMesh && o.material){
             if (!tinted.has(o.material)){
-              const m = o.material.clone();
-              if (!m.map) m.color.multiply(new THREE.Color(.40,.46,.42));
-              if (m.roughness !== undefined){ m.roughness = .62; m.metalness = .35; }
+              const m = o.material.clone(), nm = m.name;
+              if (nm === 'green_glow'){
+                m.color.set(MGLOW).multiplyScalar(.25); m.emissive.set(MGLOW); m.emissiveIntensity = 2.6;
+              } else if (nm === 'screen'){
+                m.color.set(MGLOW).multiplyScalar(.2); m.emissive.set(MGLOW); m.emissiveIntensity = 1.8;
+              } else if (nm === 'glass'){
+                m.transparent = true; m.opacity = .2; m.roughness = .05; m.metalness = 0; m.depthWrite = false; m.envMapIntensity = 1.8;
+              } else if (nm === 'subject'){
+                m.roughness = .85; m.color.multiplyScalar(.5);
+              } else {
+                m.color.multiply(new THREE.Color(.9,.96,1.08));
+                m.roughness = Math.min(.62, Math.max(.36, m.roughness)); m.metalness = .8; m.envMapIntensity = 1.5;
+              }
+              patchSurface(m, { floorAO:.6, ceilAO:0, aoH:1.0, noise:false });
               tinted.set(o.material, m);
             }
             o.material = tinted.get(o.material);
@@ -1860,7 +1945,7 @@ const eyeGeoS    = new THREE.SphereGeometry(.12, 12, 10);
 
 const gunMetal = new THREE.MeshStandardMaterial({ color:0x46524a, roughness:.38, metalness:.55 });
 const gunDark  = new THREE.MeshStandardMaterial({ color:0x252c26, roughness:.5, metalness:.5 });
-const glowGreenMat = new THREE.MeshBasicMaterial({ color:0x2bff7f });
+const glowGreenMat = new THREE.MeshBasicMaterial({ color:MGLOW });
 
 // pulse rifle model, used for both the floor pickup and the view-model
 function buildRifle(){
@@ -1903,36 +1988,39 @@ const rifleFloor = new THREE.Group();
 
 // view-model rifle (attached to camera after pickup)
 function dimViewmodel(group){
-  const dimmed = new Map();
+  // the view-model sits half a metre from the headlamp, so its lit materials are
+  // darkened and de-glossed or physically-correct falloff blows them out white
+  const seen = new Map();
   group.traverse(o => {
-    if (o.isMesh && o.material && o.material.isMeshStandardMaterial){
-      if (!dimmed.has(o.material)){
-        const m = o.material.clone();
-        m.color.multiplyScalar(.09);
-        dimmed.set(o.material, m);
+    if (!o.isMesh) return;
+    o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false;
+    if (!seen.has(o.material)){
+      const m = o.material.clone();
+      if (m.isMeshStandardMaterial && !(m.emissiveIntensity > 0 && m.emissive.getHex() > 0)){
+        m.color.multiplyScalar(.16); m.roughness = Math.max(.55, m.roughness);
+        m.metalness = Math.min(.55, m.metalness); m.envMapIntensity = .45;
       }
-      o.material = dimmed.get(o.material);
+      seen.set(o.material, m);
     }
+    o.material = seen.get(o.material);
   });
 }
+const VM = { kick:0, sx:0, sy:0, flash:0,
+  muzzle:new THREE.Vector3(0,.02,-.75), port:new THREE.Vector3(.04,.05,-.1),
+  base:new THREE.Vector3(.2,-.23,-.5) };
 const viewRifle = new THREE.Group();
+// locate the muzzle and the ejection port from the model bounds (viewmodel local space)
+function fitViewmodel(vr){
+  const tmp = new THREE.Group(); tmp.add(vr); tmp.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(tmp);
+  viewRifle.add(vr);
+  VM.muzzle.set((box.min.x + box.max.x)/2, (box.min.y + box.max.y)/2 + .02, box.min.z - .03);
+  VM.port.set(box.max.x * .6, box.max.y * .7, box.min.z * .3 + box.max.z * .7);
+}
 {
   const vr = buildRifle();
-  // the view-model sits ~0.5m from the headlamp; darken its lit materials
-  // so physically-correct falloff doesn't blow it out white
-  const dimmed = new Map();
-  vr.traverse(o => {
-    if (o.isMesh && o.material.isMeshStandardMaterial){
-      if (!dimmed.has(o.material)){
-        const m = o.material.clone();
-        m.color.multiplyScalar(.09);
-        dimmed.set(o.material, m);
-      }
-      o.material = dimmed.get(o.material);
-    }
-  });
-  viewRifle.add(vr);
-  viewRifle.position.set(.24,-.22,-.5);
+  dimViewmodel(vr); fitViewmodel(vr);
+  viewRifle.position.copy(VM.base);
   viewRifle.visible = false;
   camera.add(viewRifle);
 }
@@ -1941,7 +2029,8 @@ modelsReady.then(() => {
   viewRifle.clear();
   const vr = MODELS.rifle.template.clone();
   dimViewmodel(vr);
-  viewRifle.add(vr);
+  fitViewmodel(vr);
+  viewRifle.add(muzzleSprite);
   if (rifleFloor.parent){
     rifleFloor.remove(rifleFloor.children[0]);
     const rf = MODELS.rifle.template.clone();
@@ -1950,33 +2039,185 @@ modelsReady.then(() => {
   }
 });
 
-// tracer line pool
-const tracerMat = new THREE.LineBasicMaterial({ color:0xbaffd9, transparent:true, opacity:1 });
+// ---- shared effect textures ----
+const STAR_TEX = makeTex((g,s) => {
+  g.clearRect(0,0,s,s);
+  const d = g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  d.addColorStop(0,'rgba(255,255,255,1)'); d.addColorStop(.18,'rgba(255,230,190,.85)'); d.addColorStop(.5,'rgba(255,150,60,.25)'); d.addColorStop(1,'rgba(255,100,20,0)');
+  g.fillStyle = d; g.fillRect(0,0,s,s);
+  g.translate(s/2,s/2);
+  for (let k=0;k<4;k++){
+    g.rotate(Math.PI/4 + (k ? 0 : .12));
+    const l = g.createLinearGradient(0,0,s*.5,0); l.addColorStop(0,'rgba(255,240,210,.95)'); l.addColorStop(1,'rgba(255,140,40,0)');
+    g.fillStyle = l; g.beginPath(); g.moveTo(0,-s*.028); g.lineTo(s*.5,0); g.lineTo(0,s*.028); g.fill();
+    g.rotate(Math.PI/4);
+  }
+}, 128);
+const DECAL_TEX = makeTex((g,s) => {
+  g.clearRect(0,0,s,s);
+  const d = g.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+  d.addColorStop(0,'rgba(0,0,0,.92)'); d.addColorStop(.35,'rgba(6,5,5,.7)'); d.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle = d; g.fillRect(0,0,s,s);
+  g.translate(s/2,s/2);
+  for (let i=0;i<14;i++){                                    // radial scorch splatter
+    g.rotate(Math.random()*6.28);
+    const l = g.createLinearGradient(0,0,s*(.18+Math.random()*.3),0); l.addColorStop(0,'rgba(0,0,0,.8)'); l.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle = l; g.fillRect(0,-1.5,s*.5,3);
+  }
+  g.fillStyle = 'rgba(255,120,40,.5)'; g.beginPath(); g.arc(0,0,3,0,7); g.fill();
+}, 128);
+
+// ---- tracers: pooled thin additive bolts ----
+const tracerGeo = new THREE.CylinderGeometry(.013, .013, 1, 5, 1, true).rotateX(Math.PI/2);
 const tracers = [];
+for (let i=0;i<10;i++){
+  const m = new THREE.Mesh(tracerGeo, new THREE.MeshBasicMaterial({ color:0xffc27a, transparent:true,
+    opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, fog:false }));
+  m.visible = false; m.frustumCulled = false; scene.add(m); tracers.push({ mesh:m, life:0 });
+}
+let tracerHead = 0;
 function spawnTracer(from, to){
-  const g = new THREE.BufferGeometry().setFromPoints([from, to]);
-  const line = new THREE.Line(g, tracerMat.clone());
-  scene.add(line);
-  tracers.push({ line, life:.07 });
+  const t = tracers[tracerHead++ % tracers.length];
+  t.mesh.position.copy(from).lerp(to, .5);
+  t.mesh.scale.set(1, 1, Math.max(.01, from.distanceTo(to)));
+  t.mesh.lookAt(to);
+  t.mesh.visible = true; t.life = .09;
 }
 
-// impact sparks
-const sparkMat = new THREE.PointsMaterial({ color:0xbfffd2, size:.06,
-  transparent:true, opacity:1, depthWrite:false, blending:THREE.AdditiveBlending });
-const sparks = [];
-function spawnSparks(at, n=10, color){
-  const pos = new Float32Array(n*3), vel = [];
-  for (let i=0;i<n;i++){
-    pos[i*3]=at.x; pos[i*3+1]=at.y; pos[i*3+2]=at.z;
-    vel.push(new THREE.Vector3((Math.random()-.5)*6,(Math.random()-.2)*5,(Math.random()-.5)*6));
+// ---- spark / ember particles: one pooled Points object ----
+const PART_N = 360;
+const partPos = new Float32Array(PART_N*3), partCol = new Float32Array(PART_N*3), partVel = new Float32Array(PART_N*3),
+      partBase = new Float32Array(PART_N*3), partLife = new Float32Array(PART_N), partMax = new Float32Array(PART_N).fill(1);
+for (let i=0;i<PART_N;i++) partPos[i*3+1] = -100;
+const partGeo = new THREE.BufferGeometry();
+partGeo.setAttribute('position', new THREE.BufferAttribute(partPos, 3).setUsage(THREE.DynamicDrawUsage));
+partGeo.setAttribute('color', new THREE.BufferAttribute(partCol, 3).setUsage(THREE.DynamicDrawUsage));
+const partPts = new THREE.Points(partGeo, new THREE.PointsMaterial({ size:.12, map:SOFT_TEX, vertexColors:true,
+  transparent:true, blending:THREE.AdditiveBlending, depthWrite:false }));
+partPts.frustumCulled = false; scene.add(partPts);
+let partHead = 0, partActive = 0;
+const _pc = new THREE.Color();
+function spawnSparks(at, n=10, color, normal){
+  _pc.set(color != null ? color : 0xffb060);
+  for (let k=0;k<n;k++){
+    const i = (partHead++) % PART_N;
+    partPos[i*3] = at.x; partPos[i*3+1] = at.y; partPos[i*3+2] = at.z;
+    let vx = Math.random()-.5, vy = Math.random()-.2, vz = Math.random()-.5;
+    if (normal){ vx = vx*.7 + normal.x; vy = vy*.7 + normal.y; vz = vz*.7 + normal.z; }
+    const sp = 2.5 + Math.random()*5.5;
+    partVel[i*3] = vx*sp; partVel[i*3+1] = vy*sp; partVel[i*3+2] = vz*sp;
+    partBase[i*3] = _pc.r*1.4; partBase[i*3+1] = _pc.g*1.4; partBase[i*3+2] = _pc.b*1.4;
+    partLife[i] = partMax[i] = .25 + Math.random()*.5;
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = sparkMat.clone(); if (color) m.color.setHex(color);
-  const pts = new THREE.Points(g, m);
-  scene.add(pts);
-  sparks.push({ pts, vel, life:.35 });
+  partActive = PART_N;
 }
+function updateParticles(dt){
+  if (!partActive) return;
+  let any = false;
+  for (let i=0;i<PART_N;i++){
+    if (partLife[i] <= 0) continue;
+    partLife[i] -= dt;
+    if (partLife[i] <= 0){ partPos[i*3+1] = -100; partCol[i*3] = partCol[i*3+1] = partCol[i*3+2] = 0; continue; }
+    any = true;
+    partVel[i*3+1] -= 12*dt;
+    partPos[i*3] += partVel[i*3]*dt; partPos[i*3+1] += partVel[i*3+1]*dt; partPos[i*3+2] += partVel[i*3+2]*dt;
+    if (partPos[i*3+1] < .03){ partPos[i*3+1] = .03; partVel[i*3+1] *= -.4; partVel[i*3] *= .6; partVel[i*3+2] *= .6; }
+    const f = partLife[i] / partMax[i], f2 = f*f;
+    partCol[i*3] = partBase[i*3]*f2; partCol[i*3+1] = partBase[i*3+1]*f2; partCol[i*3+2] = partBase[i*3+2]*f2;
+  }
+  partGeo.attributes.position.needsUpdate = true; partGeo.attributes.color.needsUpdate = true;
+  if (!any) partActive = 0;
+}
+
+// ---- flash / smoke sprites (muzzle-class pops, death bursts, impact heat) ----
+const flashPool = [];
+for (let i=0;i<14;i++){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:STAR_TEX, color:0xffa050, transparent:true, opacity:0,
+    blending:THREE.AdditiveBlending, depthWrite:false, fog:false }));
+  s.visible = false; scene.add(s); flashPool.push({ s, life:0, max:.1, size:1 });
+}
+let flashHead = 0;
+function spawnFlash(at, size, color, life){
+  const f = flashPool[flashHead++ % flashPool.length];
+  f.s.position.copy(at); f.s.material.color.set(color != null ? color : 0xffa050);
+  f.s.material.rotation = Math.random()*6.28;
+  f.size = size; f.life = f.max = life || .12; f.s.visible = true;
+}
+const smokePool = [];
+for (let i=0;i<8;i++){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:SOFT_TEX, color:0x2a2c30, transparent:true, opacity:0, depthWrite:false }));
+  s.visible = false; scene.add(s); smokePool.push({ s, life:0, max:1 });
+}
+let smokeHead = 0;
+function spawnSmoke(at){
+  const f = smokePool[smokeHead++ % smokePool.length];
+  f.s.position.copy(at); f.life = f.max = .9 + Math.random()*.5; f.s.visible = true;
+}
+
+// ---- bullet decals: pooled scorch marks, capped by quality tier ----
+const decalPool = [];
+{
+  const geo = new THREE.PlaneGeometry(.4, .4);
+  for (let i=0;i<28;i++){
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:DECAL_TEX, transparent:true, depthWrite:false,
+      polygonOffset:true, polygonOffsetFactor:-4, polygonOffsetUnits:-4 }));
+    m.visible = false; m.userData.age = 0; scene.add(m); decalPool.push(m);
+  }
+}
+let decalHead = 0;
+function spawnDecal(at, n){
+  const m = decalPool[decalHead++ % Math.max(4, Q.p.decals)];
+  m.position.copy(at).addScaledVector(n, .014);
+  m.lookAt(at.x + n.x, at.y + n.y, at.z + n.z);
+  m.rotateZ(Math.random()*6.28);
+  m.scale.setScalar(.7 + Math.random()*.8);
+  m.material.opacity = 1; m.userData.age = 0; m.visible = true;
+}
+
+// ---- ejected brass ----
+const shellGeo = new THREE.CylinderGeometry(.007, .0075, .034, 6);
+const shellMat = new THREE.MeshStandardMaterial({ color:0xd0a64e, metalness:1, roughness:.28, envMapIntensity:1.6 });
+const shells = [];
+for (let i=0;i<8;i++){
+  const m = new THREE.Mesh(shellGeo, shellMat); m.visible = false; scene.add(m);
+  shells.push({ m, v:new THREE.Vector3(), spin:new THREE.Vector3(), life:0 });
+}
+let shellHead = 0;
+const _sv = new THREE.Vector3();
+function ejectShell(){
+  const sh = shells[shellHead++ % shells.length];
+  _sv.copy(VM.port); viewRifle.localToWorld(_sv);
+  sh.m.position.copy(_sv); sh.m.visible = true; sh.life = 1.5;
+  const e = camera.matrixWorld.elements;
+  const r = Math.random();
+  sh.v.set(e[0]*(1.5 + r) + e[4]*(1.1 + r*.6) - e[8]*.3, e[1]*(1.5 + r) + e[5]*(1.1 + r*.6) - e[9]*.3, e[2]*(1.5 + r) + e[6]*(1.1 + r*.6) - e[10]*.3);
+  sh.spin.set(Math.random()*20, Math.random()*20, Math.random()*20);
+}
+
+// ---- muzzle flash sprite (parented to the viewmodel) ----
+const muzzleSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map:STAR_TEX, color:0xffc990, transparent:true,
+  opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false, fog:false }));
+muzzleSprite.renderOrder = 20; muzzleSprite.visible = false;
+
+function wallNormalAt(p, out){
+  let best = 1e9, bc = null;
+  for (const c of colliders){
+    if (c.door && !c.active) continue;
+    const dx = Math.max(c.x1 - p.x, 0, p.x - c.x2), dz = Math.max(c.z1 - p.z, 0, p.z - c.z2), d = dx*dx + dz*dz;
+    if (d < best){ best = d; bc = c; }
+  }
+  if (!bc){ out.set(0,0,1); return out; }
+  const f = [[Math.abs(p.x-bc.x1),-1,0],[Math.abs(p.x-bc.x2),1,0],[Math.abs(p.z-bc.z1),0,-1],[Math.abs(p.z-bc.z2),0,1]];
+  f.sort((a,b) => a[0]-b[0]);
+  return out.set(f[0][1], 0, f[0][2]);
+}
+let _hmT = 0;
+function showHitMarker(kill){
+  el.hit.classList.remove('show','kill'); void el.hit.offsetWidth;
+  el.hit.classList.add('show'); if (kill) el.hit.classList.add('kill');
+}
+
+viewRifle.add(muzzleSprite);
 
 // soft blob shadow (grounds the drones)
 const shadowTex = makeTex((g,s)=>{
@@ -2129,11 +2370,11 @@ modelsReady.then(() => {
 /* ============================================================
    Drones
    ============================================================ */
-const EYE_GREEN = 0x2bff7f, EYE_RED = 0xff2b3c;
+const EYE_GREEN = 0x4fd8ff, EYE_RED = 0xff2b3c;   // idle sensors read cold, alert sensors read hot
 const droneMetal = new THREE.MeshStandardMaterial({ color:0x59685c, roughness:.42, metalness:.55 });
 const droneDark  = new THREE.MeshStandardMaterial({ color:0x2b332c, roughness:.55, metalness:.5 });
 const droneArmor = new THREE.MeshStandardMaterial({ color:0x48594d, roughness:.5, metalness:.6 });
-const thrusterGlowMat = new THREE.MeshBasicMaterial({ color:0x39ff88, transparent:true,
+const thrusterGlowMat = new THREE.MeshBasicMaterial({ color:MGLOW, transparent:true,
   opacity:.7, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
 
 // six-legged hunter with an articulated walk cycle and a scanning sensor head
@@ -2227,7 +2468,7 @@ function buildSentry(eyeMat){
 // per-kind combat stats; warden is the heavy sentry frame from chapter 2
 const KINDS = {
   crawler: { hp:30,  rad:.55, homeY:.5 },
-  sentry:  { hp:60,  rad:.65, homeY:1.7, charge:1.6, tele:.7,  pdmg:12, pspeed:13, scale:1,    idleEye:0x2bff7f },
+  sentry:  { hp:60,  rad:.65, homeY:1.7, charge:1.6, tele:.7,  pdmg:12, pspeed:13, scale:1,    idleEye:0x4fd8ff },
   warden:  { hp:130, rad:.95, homeY:1.9, charge:1.0, tele:.5,  pdmg:16, pspeed:17, scale:1.55, idleEye:0xffc24d },
 };
 
@@ -2239,13 +2480,31 @@ function makeDrone(kind, x, z, segment){
   const K = KINDS[kind];
   const eyeMat = new THREE.MeshBasicMaterial({ color: K.idleEye || EYE_GREEN });
   const M = MODELS[kind];
-  let built;
+  let built, flashMats = [];
   if (M){
     const g = M.template.clone();
     const anim = { glb: true };
+    // per-drone material instances so hit flashes stay local to one machine
+    const inst = new Map(); flashMats = [];
+    g.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      let m = inst.get(o.material);
+      if (!m){
+        m = o.material.clone();
+        m.onBeforeCompile = o.material.onBeforeCompile; m.customProgramCacheKey = o.material.customProgramCacheKey;
+        m.userData.e0 = m.emissive.clone(); m.userData.i0 = m.emissiveIntensity;
+        inst.set(o.material, m); flashMats.push(m);
+      }
+      o.material = m;
+    });
     const eye = new THREE.Mesh(eyeGeoC, eyeMat);
     eye.position.set(...M.eye);
     g.add(eye);
+    anim.haloMat = new THREE.SpriteMaterial({ map:SOFT_TEX, color:K.idleEye || EYE_GREEN, transparent:true,
+      opacity:.85, blending:THREE.AdditiveBlending, depthWrite:false });
+    const halo = new THREE.Sprite(anim.haloMat);
+    halo.scale.setScalar(isCrawler ? .6 : .85); halo.position.set(...M.eye); g.add(halo);
     if (M.muzzle){
       anim.muzzle = new THREE.Object3D();
       anim.muzzle.position.set(...M.muzzle);
@@ -2264,7 +2523,7 @@ function makeDrone(kind, x, z, segment){
   mesh.add(shadow);
   if (!M && K.scale && K.scale !== 1) mesh.scale.setScalar(K.scale);
   const d = {
-    id: droneSeq++, kind, segment, mesh, eyeMat, anim: built.anim, shadow,
+    id: droneSeq++, kind, segment, mesh, eyeMat, anim: built.anim, shadow, fm: flashMats, flash: 0,
     baseScale: M ? 1 : (K.scale || 1), idleEye: K.idleEye || EYE_GREEN,
     home: new THREE.Vector3(x, K.homeY, z),
     hp: K.hp, maxHp: K.hp,
@@ -2309,15 +2568,19 @@ const MAX_ACTIVE = 8, WAVE_TOTAL = CH.waveTotal;
 /* ============================================================
    Sentry projectiles
    ============================================================ */
-const projGeo = new THREE.SphereGeometry(.14, 6, 6);
-const projMat = new THREE.MeshBasicMaterial({ color:0xff5566 });
+const projGeo = new THREE.SphereGeometry(.09, 8, 8);
+const projMat = new THREE.MeshBasicMaterial({ color:0xfff0e0 });
+const projHaloMat = new THREE.SpriteMaterial({ map:SOFT_TEX, color:0xff4a3a, transparent:true, opacity:.95,
+  blending:THREE.AdditiveBlending, depthWrite:false });
 const projectiles = [];
 function fireProjectile(from, target, speed = 13, dmg = 12){
-  const m = new THREE.Mesh(projGeo, projMat);
+  const m = new THREE.Group();
+  m.add(new THREE.Mesh(projGeo, projMat));
+  const halo = new THREE.Sprite(projHaloMat); halo.scale.setScalar(.75); m.add(halo);
   m.position.copy(from);
   const vel = target.clone().sub(from).normalize().multiplyScalar(speed);
   scene.add(m);
-  projectiles.push({ mesh:m, vel, life:4, dmg });
+  projectiles.push({ mesh:m, vel, life:4, dmg, origin:from.clone() });
   AudioSys.sentryFire();
 }
 
@@ -2510,14 +2773,20 @@ function updateRadio(dt){
 const _rayDir = new THREE.Vector3();
 const _muzzle = new THREE.Vector3();
 
+const _hn = new THREE.Vector3(), _hp = new THREE.Vector3(), _mz = new THREE.Vector3();
 function tryFire(dt){
   G.fireCd -= dt;
+  G.heat = Math.max(0, (G.heat || 0) - dt*.55);
   const wantFire = (mouseFiring || touchFiring || keys['Space']) && G.hasRifle;
   if (!wantFire || G.fireCd > 0) return;
   G.fireCd = 0.18; // fire-rate cap
   AudioSys.shot();
   G.shakeT = 0.06;
-  viewRifle.position.z = -0.42; // recoil, eased back in update
+  VM.kick = 1;               // viewmodel recoil, eased back in updatePlayer
+  FX.kick += .007;           // small camera muzzle climb
+  G.heat = Math.min(1, G.heat + .1);
+  el.crosshair.classList.add('fire'); clearTimeout(G._chT);
+  G._chT = setTimeout(() => el.crosshair.classList.remove('fire'), 90);
 
   camera.getWorldDirection(_rayDir);
   const origin = new THREE.Vector3();
@@ -2525,8 +2794,6 @@ function tryFire(dt){
 
   // find nearest hit: walls (2D) vs drones (3D sphere test along ray)
   let bestT = 60, bestDrone = null;
-  // wall distance along ray (sample 2D)
-  const end = origin.clone().addScaledVector(_rayDir, 60);
   let wallT = 60;
   for (const c of colliders){
     if (c.door && !c.active) continue;
@@ -2544,16 +2811,37 @@ function tryFire(dt){
     const rad = KINDS[d.kind].rad;
     if (closest2 < rad*rad){ bestT = t; bestDrone = d; }
   }
+  // surface the shot lands on: floor / ceiling / wall face (cosmetic, never blocks a drone hit)
+  _hn.set(0,0,0);
+  if (bestDrone) _hn.copy(_rayDir).negate();
+  else {
+    if (_rayDir.y < -1e-4){ const tf = origin.y / -_rayDir.y; if (tf < bestT){ bestT = tf; _hn.set(0,1,0); } }
+    else if (_rayDir.y > 1e-4){ const tc = (WALL_H - origin.y) / _rayDir.y; if (tc < bestT){ bestT = tc; _hn.set(0,-1,0); } }
+    if (_hn.lengthSq() === 0 && bestT < 59.9){
+      _hp.copy(origin).addScaledVector(_rayDir, bestT);
+      wallNormalAt(_hp, _hn);
+    }
+  }
 
   const hitPoint = origin.clone().addScaledVector(_rayDir, bestT);
-  viewRifle.getWorldPosition(_muzzle);
-  spawnTracer(_muzzle.clone().addScaledVector(_rayDir, .4), hitPoint);
-  muzzleLight.intensity = 26;
-  spawnSparks(hitPoint, bestDrone ? 12 : 6);
+  viewRifle.updateMatrixWorld(true);
+  _mz.copy(VM.muzzle); viewRifle.localToWorld(_mz);
+  spawnTracer(_mz.clone().addScaledVector(_rayDir, .1), hitPoint);
+  muzzleLight.intensity = 30;
+  VM.flash = 1;
+  ejectShell();
 
   if (bestDrone){
+    spawnSparks(hitPoint, 14, 0xff9a50, _hn);
+    spawnFlash(hitPoint, .55, 0xffb070, .09);
     AudioSys.hitConfirm();
+    const wasAlive = bestDrone.alive;
     damageDrone(bestDrone, 16);
+    showHitMarker(wasAlive && !bestDrone.alive);
+  } else if (bestT < 59.9){
+    spawnSparks(hitPoint, 9, 0xffb060, _hn);
+    spawnFlash(hitPoint, .4, 0xff9040, .1);
+    spawnDecal(hitPoint, _hn);
   }
 }
 function rayAABB2D(ox, oz, dx, dz, c){
@@ -2574,12 +2862,17 @@ function rayAABB2D(ox, oz, dx, dz, c){
   return tmin > 0 ? tmin : tmax;
 }
 
+const HOT_FLASH = new THREE.Color(1, .62, .3);
 function damageDrone(d, dmg){
   d.hp -= dmg;
+  d.flash = 1;
   if (d.state === 'idle') setDroneState(d, 'alert');
   if (d.hp <= 0 && d.alive){
     d.alive = false; d.deathT = .4;
-    spawnSparks(d.mesh.position, 16, 0xffcc88);
+    spawnSparks(d.mesh.position, 34, 0xffa850);
+    spawnFlash(d.mesh.position, 2.4, MGLOW, .3);
+    spawnSmoke(d.mesh.position);
+    if (d.anim.haloMat) d.anim.haloMat.opacity = 0;
     AudioSys.droneDie();
   }
 }
@@ -2590,13 +2883,20 @@ function setDroneState(d, s){
   if (s === 'alert') AudioSys.alert();
 }
 
-function damagePlayer(dmg){
+function damagePlayer(dmg, src){
   if (G.mode !== 'play') return;
   G.hp -= dmg;
   G.lastDamageT = G.time;
   AudioSys.hurt();
   el.dmg.style.opacity = .9;
   setTimeout(()=> el.dmg.style.opacity = 0, 220);
+  FX.dmg = 1; FX.kick += .03; G.shakeT = .14; G.rollKick = (Math.random() < .5 ? -1 : 1) * .05;
+  if (src){                                   // directional hit indicator
+    const rel = Math.atan2(-(src.x - yawObj.position.x), -(src.z - yawObj.position.z)) - G.yaw;
+    el.dmgDir.style.transform = `translate(-50%,-50%) rotate(${(-rel*180/Math.PI).toFixed(1)}deg)`;
+    el.dmgDir.style.opacity = 1;
+    clearTimeout(G._ddT); G._ddT = setTimeout(() => el.dmgDir.style.opacity = 0, 650);
+  }
   if (G.hp <= 0){ G.hp = 0; die(); }
 }
 
@@ -2607,6 +2907,10 @@ function updateDrones(dt){
   const px = yawObj.position.x, pz = yawObj.position.z;
   let updated = 0;
   for (const d of drones){
+    if (d.flash > 0){
+      d.flash = Math.max(0, d.flash - dt*6);
+      for (const m of d.fm){ m.emissive.copy(m.userData.e0).lerp(HOT_FLASH, d.flash); m.emissiveIntensity = m.userData.i0 + d.flash*3; }
+    }
     if (!d.alive){
       if (d.deathT > 0){
         d.deathT -= dt;
@@ -2625,6 +2929,7 @@ function updateDrones(dt){
     if (++updated > MAX_ACTIVE + 4) continue; // hard update cap safety
     d.stateT += dt;
     d.shadow.position.y = .03 - m.y;      // pin blob shadow to the floor
+    if (d.anim.haloMat) d.anim.haloMat.color.copy(d.eyeMat.color);
     const A = d.anim;
     if (A.glb){
       if (A.recoil > 0) A.recoil = Math.max(0, A.recoil - dt*5);
@@ -2684,7 +2989,7 @@ function updateDrones(dt){
         d.meleeCd -= dt;
         if (dist < 1.3 && d.meleeCd <= 0){
           d.meleeCd = 1.0;
-          damagePlayer(10);
+          damagePlayer(10, m);
         }
         if (!seesPlayer && dist > 30) setDroneState(d, 'idle');
       } else {
@@ -2723,7 +3028,7 @@ function updateProjectiles(dt){
     const dz = p.mesh.position.z - yawObj.position.z;
     let dead = p.life <= 0;
     if (dx*dx + dy*dy + dz*dz < .45){
-      damagePlayer(p.dmg); dead = true;
+      damagePlayer(p.dmg, p.origin); dead = true;
     } else {
       // wall hit
       for (const c of colliders){
@@ -2732,7 +3037,7 @@ function updateProjectiles(dt){
         if (x > c.x1-.1 && x < c.x2+.1 && z > c.z1-.1 && z < c.z2+.1){ dead = true; break; }
       }
     }
-    if (dead){ scene.remove(p.mesh); projectiles.splice(i,1); }
+    if (dead){ spawnSparks(p.mesh.position, 7, 0xff6a50); spawnFlash(p.mesh.position, .5, 0xff5040, .08); scene.remove(p.mesh); projectiles.splice(i,1); }
   }
 }
 
@@ -2922,7 +3227,7 @@ function updatePlayer(dt){
   if (len > 1){ mx/=len; mz/=len; }
 
   yawObj.rotation.y = G.yaw;
-  pitchObj.rotation.x = G.pitch;
+  pitchObj.rotation.x = G.pitch + FX.kick;
 
   _fwd.set(-Math.sin(G.yaw), 0, -Math.cos(G.yaw));
   _right.set(Math.cos(G.yaw), 0, -Math.sin(G.yaw));
@@ -2931,24 +3236,39 @@ function updatePlayer(dt){
   collide(yawObj.position, PLAYER_R);
   yawObj.position.y = PLAYER_EYE + (len > .1 ? Math.sin(G.time*11)*.03 : 0);
 
-  // camera shake
+  // camera shake + strafe roll
   if (G.shakeT > 0){
     G.shakeT -= dt;
     camera.position.set((Math.random()-.5)*.02, (Math.random()-.5)*.02, 0);
   } else camera.position.set(0,0,0);
+  G.roll = (G.roll || 0) + ((-mx * .018 + (G.rollKick || 0)) - (G.roll || 0)) * Math.min(1, dt*7);
+  G.rollKick = (G.rollKick || 0) * Math.max(0, 1 - dt*9);
+  camera.rotation.z = G.roll;
 
-  // rifle recoil recovery + sway
+  // viewmodel: recoil, look-lag sway, walk bob
   if (viewRifle.visible){
-    viewRifle.position.z += (-.5 - viewRifle.position.z) * dt * 12;
-    viewRifle.position.y = -.22 + Math.sin(G.time*10)*(len>.1?.006:.002);
+    VM.kick = Math.max(0, VM.kick - dt*8);
+    if (VM.lastYaw === undefined || VM.lastYaw === null){ VM.lastYaw = G.yaw; VM.lastPitch = G.pitch; }
+    const dyaw = Math.max(-.08, Math.min(.08, G.yaw - VM.lastYaw)), dpit = Math.max(-.08, Math.min(.08, G.pitch - VM.lastPitch));
+    VM.lastYaw = G.yaw; VM.lastPitch = G.pitch;
+    const k = Math.min(1, dt*9);
+    VM.sx += (-dyaw*1.4 - VM.sx) * k; VM.sy += (dpit*1.1 - VM.sy) * k;
+    const moving = len > .1, bt = G.time*5.6;
+    viewRifle.position.set(
+      VM.base.x + VM.sx + (moving ? Math.cos(bt)*.007 : 0),
+      VM.base.y + VM.sy + (moving ? Math.abs(Math.sin(bt))*.011 : Math.sin(G.time*1.4)*.002),
+      VM.base.z + VM.kick*.075);
+    viewRifle.rotation.set(VM.kick*.07 + VM.sy*.9, -VM.sx*.8, VM.sx*.5);
   }
 
   // health regen: 5s without damage
   if (G.hp < 100 && G.time - G.lastDamageT > 5){
     G.hp = Math.min(100, G.hp + 26*dt);
   }
-  el.healthFill.style.width = G.hp.toFixed(0)+'%';
-  el.healthFill.style.background = G.hp > 35 ? 'var(--grn)' : 'var(--red)';
+  el.healthFill.style.strokeDashoffset = ((1 - G.hp/100) * 138.2).toFixed(1);
+  el.healthNum.textContent = Math.ceil(G.hp);
+  el.healthWrap.classList.toggle('low', G.hp <= 35);
+  el.heatFill.style.strokeDashoffset = ((1 - (G.heat || 0)) * 138.2).toFixed(1);
 
   // rifle pickup
   if (!G.hasRifle){
@@ -2965,6 +3285,7 @@ function pickupRifle(){
   viewRifle.visible = true;
   el.prompt.style.display = 'none';
   el.crosshair.style.display = 'block';
+  el.ammoWrap.style.display = 'block';
   if (IS_TOUCH) el.fireBtn.style.display = 'block';
   radio('pickup');
   AudioSys.checkpoint();
@@ -2979,34 +3300,79 @@ function pickupRifle(){
    ============================================================ */
 function updateFX(dt){
   // tracers
-  for (let i = tracers.length-1; i >= 0; i--){
-    const t = tracers[i];
+  for (const t of tracers){
+    if (t.life <= 0) continue;
     t.life -= dt;
-    t.line.material.opacity = Math.max(0, t.life/.07);
-    if (t.life <= 0){ scene.remove(t.line); t.line.geometry.dispose(); tracers.splice(i,1); }
+    t.mesh.material.opacity = Math.max(0, t.life/.09);
+    if (t.life <= 0) t.mesh.visible = false;
   }
-  // impact sparks: fly out, fall, fade
-  for (let i = sparks.length-1; i >= 0; i--){
-    const s = sparks[i];
-    s.life -= dt;
-    const p = s.pts.geometry.attributes.position;
-    for (let j=0;j<s.vel.length;j++){
-      s.vel[j].y -= 14*dt;
-      p.array[j*3]   += s.vel[j].x*dt;
-      p.array[j*3+1] += s.vel[j].y*dt;
-      p.array[j*3+2] += s.vel[j].z*dt;
-    }
-    p.needsUpdate = true;
-    s.pts.material.opacity = Math.max(0, s.life/.35);
-    if (s.life <= 0){ scene.remove(s.pts); s.pts.geometry.dispose(); sparks.splice(i,1); }
+  updateParticles(dt);
+  for (const f of flashPool){
+    if (f.life <= 0) continue;
+    f.life -= dt;
+    const k = Math.max(0, f.life / f.max);
+    f.s.material.opacity = k; f.s.scale.setScalar(f.size * (1.1 + (1-k)*.7));
+    if (f.life <= 0) f.s.visible = false;
   }
+  for (const f of smokePool){
+    if (f.life <= 0) continue;
+    f.life -= dt;
+    const k = Math.max(0, f.life / f.max);
+    f.s.material.opacity = k * .42; f.s.scale.setScalar(.6 + (1-k)*1.6); f.s.position.y += dt*.5;
+    if (f.life <= 0) f.s.visible = false;
+  }
+  for (const m of decalPool){
+    if (!m.visible) continue;
+    m.userData.age += dt;
+    if (m.userData.age > 16) m.material.opacity = Math.max(0, 1 - (m.userData.age - 16)/4);
+    if (m.userData.age > 20) m.visible = false;
+  }
+  for (const sh of shells){
+    if (sh.life <= 0) continue;
+    sh.life -= dt;
+    sh.v.y -= 9.8*dt;
+    sh.m.position.addScaledVector(sh.v, dt);
+    sh.m.rotation.x += sh.spin.x*dt; sh.m.rotation.y += sh.spin.y*dt;
+    if (sh.m.position.y < .02){ sh.m.position.y = .02; sh.v.y *= -.3; sh.v.x *= .5; sh.v.z *= .5; sh.spin.multiplyScalar(.5); }
+    if (sh.life <= 0) sh.m.visible = false;
+  }
+  // screen-space feedback values
+  FX.dmg = Math.max(0, FX.dmg - dt*2.4);
+  FX.kick *= Math.exp(-dt*12);
+  FX.low += ((G.hp < 40 ? (40 - G.hp)/40 : 0) - FX.low) * Math.min(1, dt*3);
+  FX.ca = .0012 + FX.dmg*.011;
+  // viewmodel muzzle flash sprite
+  if (VM.flash > 0){
+    VM.flash = Math.max(0, VM.flash - dt*16);
+    muzzleSprite.visible = true;
+    muzzleSprite.position.copy(VM.muzzle);
+    muzzleSprite.material.opacity = VM.flash;
+    muzzleSprite.scale.setScalar(.2 + VM.flash*.22);
+    if (!VM.rotT || VM.flash > .95) muzzleSprite.material.rotation = Math.random()*6.28; VM.rotT = 1;
+  } else muzzleSprite.visible = false;
   // muzzle flash decay
   if (muzzleLight.intensity > 0)
-    muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*300);
+    muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*320);
   // sentry thruster flicker (shared material — one write covers all pods)
   thrusterGlowMat.opacity = .55 + Math.sin(G.time*22)*.25;
   // environment animation: shaft flicker, conduit flow, machine-light sync
   dustU.value = G.time;
+  if (accent.visible){
+    G._accT = (G._accT || 0) - dt;
+    if (G._accT <= 0){
+      G._accT = .35;
+      const pz = yawObj.position.z; let bz = null, side = 1;
+      for (const r of ROOMS){ if (pz <= r.z2 + 3 && pz >= r.z1 - 3){
+        for (let z = r.z2-3; z > r.z1+1; z -= 6){ if (z < pz - 1){ bz = z; side = (Math.round((r.z2 - z)/6) % 2) ? 1 : -1; break; } }
+        if (bz !== null){ accent.userData.x = side < 0 ? r.x1 + 1.2 : r.x2 - 1.2; break; } } }
+      if (bz !== null) accent.userData.z = bz;
+    }
+    if (accent.userData.z !== undefined){
+      accent.position.set(accent.userData.x, 2.5, accent.userData.z);
+      accent.color.copy(matStrip.color);
+      accent.intensity = (G.alarm && !G.planted ? 26 : 16) * (.88 + .12*Math.sin(G.time*13) + (Math.sin(G.time*31) > .93 ? -.3 : 0));
+    }
+  }
   condTexes.forEach(t => { t.offset.x -= dt * .45; });
   condMats.forEach(m => m.color.copy(matStrip.color));
   glowMat.color.copy(matStrip.color);
@@ -3120,6 +3486,7 @@ function hudVisible(v){
   el.objective.style.display = d;
   if (!v){
     el.crosshair.style.display = 'none';
+    el.ammoWrap.style.display = 'none';
     el.fireBtn.style.display = 'none';
     el.plantBtn.style.display = 'none';
     el.stickZone.style.display = 'none';
@@ -3128,6 +3495,7 @@ function hudVisible(v){
     el.plantWrap.style.display = 'none';
   } else if (G.hasRifle){
     el.crosshair.style.display = 'block';
+    el.ammoWrap.style.display = 'block';
     if (IS_TOUCH) el.fireBtn.style.display = 'block';
   }
 }
