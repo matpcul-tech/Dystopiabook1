@@ -243,11 +243,11 @@
         <div class="cGlyph">&#10683;</div>
         <div class="cBottom">BOOK ONE</div>
       </div>
-      <img id="coverImg" alt="Dystopia: Life After The Machines — Book One cover"
+      <img id="coverImg" alt="Dystopia: Life After The Machines, Book One cover"
            onload="if(this.naturalWidth<50){this.remove()}else{this.style.display='block';document.getElementById('coverFallback').style.display='none'}"
            onerror="this.remove()">
     </div>
-    <div id="endSub">The hive was only the beginning. Find out how Marcus's war really started &mdash; and where it goes from here.</div>
+    <div id="endSub">The hive was only the beginning. Find out how Marcus's war really started , and where it goes from here.</div>
     <div id="endBtns" style="margin-top:26px;">
       <a class="btn amber" id="book1Btn" target="_blank" rel="noopener">READ BOOK 1</a>
       <button class="btn" id="replayBtn">REPLAY</button>
@@ -275,7 +275,7 @@ if ('serviceWorker' in navigator) {
 import * as THREE from 'three';
 
 /* ============================================================
-   CONFIG — edit these without touching game code.
+   CONFIG, edit these without touching game code.
    ============================================================ */
 const CONFIG = {
   BOOK1_URL: 'https://www.amazon.com/dp/B0H2SGHFNN',
@@ -289,13 +289,13 @@ const CONFIG = {
 const N = CONFIG.NAMES;
 
 /* ============================================================
-   CHAPTERS — each chapter is pure data; the engine below builds
+   CHAPTERS, each chapter is pure data; the engine below builds
    whichever one the URL hash selects (default ch1, '#ch2' etc.)
    ============================================================ */
 const CHAPTERS = {
   ch1: {
     id: 'ch1',
-    subtitle: 'CHAPTER ONE — THE HIVE',
+    subtitle: 'CHAPTER ONE: THE HIVE',
     nextHash: '#ch2',
     startArmed: false,
     palette: {
@@ -345,33 +345,33 @@ const CHAPTERS = {
     introLines: [
       "...",
       "Cold. Metal. A floor.",
-      "—arcus. Marcus. MARCUS.",
+      "...arcus. Marcus. MARCUS.",
       "\"His vitals just came back online. He's alive.\"",
       "\"Get up, soldier. You're inside the hive.\"",
     ],
     radio: {
       pickup:      [{who:N.lead, text:"There you are. Thought we lost you, Marcus."},
-                    {who:N.ops,  text:"The hive woke up the second you did. Crawlers inbound — light 'em up."}],
+                    {who:N.ops,  text:"The hive woke up the second you did. Crawlers inbound. Light 'em up."}],
       seg1_mid:    [{who:N.ops,  text:"Pulse rifle's synced to your rig. Infinite cell. Make it count."}],
-      seg1_clear:  [{who:N.lead, text:"Segment clear. Door's cycling — move up."}],
-      seg2_enter:  [{who:N.medic,text:"Vitals holding. Take a hit, find cover — you'll knit."}],
-      seg2_mid:    [{who:N.ops,  text:"Sentries ahead. Watch the red flare — that's the wind-up."}],
+      seg1_clear:  [{who:N.lead, text:"Segment clear. Door's cycling. Move up."}],
+      seg2_enter:  [{who:N.medic,text:"Vitals holding. Take a hit, find cover, you'll knit."}],
+      seg2_mid:    [{who:N.ops,  text:"Sentries ahead. Watch the red flare, that's the wind-up."}],
       seg2_clear:  [{who:N.lead, text:"Clean. You're better at this than you have any right to be."}],
       seg3_enter:  [{who:N.ops,  text:"Signal's thick in there. You're right on top of the core."}],
       seg3_mid:    [{who:N.medic,text:"Heart rate's spiking. Breathe, Marcus."}],
       seg3_clear:  [{who:N.lead, text:"Last door. Whatever's behind it already knows you're coming."}],
-      core_enter:  [{who:N.ops,  text:"That's it — the hive core. Plant the charge, I'll cook the uplink."}],
+      core_enter:  [{who:N.ops,  text:"That's it, the hive core. Plant the charge, I'll cook the uplink."}],
       alarm:       [{who:N.lead, text:"Alarm state! Hold them off until it arms!"}],
       planted:     [{who:N.ops,  text:"Charge armed! Extraction point, NOW!"}],
       extract:     [{who:N.lead, text:"We've got you, Marcus. We've got you."}],
     },
     endTitle: "MARCUS'S STORY CONTINUES.",
-    endSub: "The hive was only the beginning. Find out how Marcus's war really started — and where it goes from here.",
+    endSub: "The hive was only the beginning. Find out how Marcus's war really started and where it goes from here.",
   },
 
   ch2: {
     id: 'ch2',
-    subtitle: 'CHAPTER TWO — THE PROCESSING CENTER',
+    subtitle: 'CHAPTER TWO: THE PROCESSING CENTER',
     nextHash: '#ch3',
     startArmed: true,
     palette: {
@@ -398,7 +398,7 @@ const CHAPTERS = {
       [-4.5,-13,.8,.3],[3.8,-27,.7,.9],[2.2,-45,.8,.5],[-2.3,-61,.75,.2],
       [1.9,-76.5,.9,.4],[-2.4,-96,.8,.7],[7.6,-107,.9,.2],[-7.4,-123,.85,.6],
     ],
-    // [x, z, isAngela] — the glass processing cylinders from Book One
+    // [x, z, isAngela], the glass processing cylinders from Book One
     cylinders: [
       [-4.8,-14],[4.8,-14],[-4.8,-20],[4.8,-20],[-4.8,-26],[4.8,-26],
       [-4.8,-32],[4.8,-32,true],[-4.8,-38],[4.8,-38],
@@ -428,32 +428,32 @@ const CHAPTERS = {
       "Vent shaft. Processing Center Delta.",
       "\"Thousands of cylinders. Thousands of names.\"",
       "\"Get in, pull the ledger, get out.\"",
-      "\"And Marcus — don't stop to look. It doesn't help them.\"",
+      "\"And Marcus, don't stop to look. It doesn't help them.\"",
     ],
     radio: {
-      pickup:      [{who:N.lead, text:"You're in. Keep your breathing even — the air system listens."},
+      pickup:      [{who:N.lead, text:"You're in. Keep your breathing even. The air system listens."},
                     {who:N.ops,  text:"Patrols are thin on this level. That's exactly what worries me."}],
       seg1_mid:    [{who:N.medic,text:"I'm reading active cylinders. Thousands of them, Marcus."}],
-      angela:      [{who:N.medic,text:"That row — cylinder A-113. ANGELA M. ...They keep the names. They label everyone."}],
+      angela:      [{who:N.medic,text:"That row, cylinder A-113. ANGELA M. ...They keep the names. They label everyone."}],
       seg1_clear:  [{who:N.ops,  text:"Section clear. Transfer hall is cycling open."}],
       seg2_enter:  [{who:N.lead, text:"Whatever you see in here, keep moving. You can't carry all of it today."}],
-      seg2_mid:    [{who:N.medic,text:"Power draw ahead — heavier frames. Wardens."}],
-      seg2_clear:  [{who:N.ops,  text:"Clear. Hall B next — use the columns, a warden's wind-up is fast."}],
+      seg2_mid:    [{who:N.medic,text:"Power draw ahead. Heavier frames. Wardens."}],
+      seg2_clear:  [{who:N.ops,  text:"Clear. Hall B next. Use the columns, a warden's wind-up is fast."}],
       seg3_enter:  [{who:N.medic,text:"Vitals spiking. Breathe. You free them by finishing this."}],
       seg3_mid:    [{who:N.lead, text:"The ledger is every name they've ever taken. We're taking it back."}],
       seg3_clear:  [{who:N.ops,  text:"Control room's open. This is it."}],
-      core_enter:  [{who:N.medic,text:"Console's live. Pull the ledger — full copy. I'll broadcast every name we save."}],
+      core_enter:  [{who:N.medic,text:"Console's live. Pull the ledger, full copy. I'll broadcast every name we save."}],
       alarm:       [{who:N.lead, text:"They know you're there! Hold the room!"}],
       planted:     [{who:N.medic,text:"Copy complete. Every name is ours. GO!"}],
-      extract:     [{who:N.lead, text:"Extraction's hot — run! ...We've got you, Marcus. Again."}],
+      extract:     [{who:N.lead, text:"Extraction's hot. Run! ...We've got you, Marcus. Again."}],
     },
     endTitle: "EVERY NAME REMEMBERED.",
-    endSub: "The ledger is free — but the machines keep more than names. Read how Marcus's war began, and where it has to go.",
+    endSub: "The ledger is free, but the machines keep more than names. Read how Marcus's war began, and where it has to go.",
   },
 
   ch3: {
     id: 'ch3',
-    subtitle: 'CHAPTER THREE — THE FINAL UPLOAD',
+    subtitle: 'CHAPTER THREE: THE FINAL UPLOAD',
     nextHash: null,
     startArmed: true,
     palette: {
@@ -511,23 +511,23 @@ const CHAPTERS = {
       "Marcus chose anyway.",
     ],
     radio: {
-      pickup:      [{who:N.lead, text:"Perimeter's breached — they followed us up the mountain."},
+      pickup:      [{who:N.lead, text:"Perimeter's breached. They followed us up the mountain."},
                     {who:N.ops,  text:"The interface is calibrated and live. Get to the lab. I'll talk you through."}],
       seg1_mid:    [{who:N.medic,text:"Aircraft sweeping the valley. Second wave inbound."}],
       seg1_clear:  [{who:N.ops,  text:"Vehicle bay clear. Research wing ahead."}],
       seg2_enter:  [{who:N.lead, text:"This place was built before the war. It's held this long. It holds today."}],
       seg2_mid:    [{who:N.medic,text:"Their network traffic just spiked. They know what we found."}],
-      seg2_clear:  [{who:N.ops,  text:"Power hall next. Wardens on the floor — the reactor is what they're guarding."}],
+      seg2_clear:  [{who:N.ops,  text:"Power hall next. Wardens on the floor. The reactor is what they're guarding."}],
       seg3_enter:  [{who:N.medic,text:"Vitals ragged. Almost there, Marcus."}],
-      seg3_mid:    [{who:N.lead, text:"Whatever happens in that lab — it's been an honor, soldier."}],
+      seg3_mid:    [{who:N.lead, text:"Whatever happens in that lab, it's been an honor, soldier."}],
       seg3_clear:  [{who:N.ops,  text:"Uplink lab is open. The interface is waiting."}],
       core_enter:  [{who:N.ops,  text:"Contact array to the base of the skull. The upload only works from inside."}],
-      alarm:       [{who:N.lead, text:"Everything they have is converging on you! We hold the door — GO!"}],
-      planted:     [{who:N.medic,text:"Upload complete... Marcus? The machines — they're stopping. Everywhere. They're stopping."}],
+      alarm:       [{who:N.lead, text:"Everything they have is converging on you! We hold the door. GO!"}],
+      planted:     [{who:N.medic,text:"Upload complete... Marcus? The machines, they're stopping. Everywhere. They're stopping."}],
       extract:     [{who:N.lead, text:"It's over. Come home, Marcus. Come home."}],
     },
     endTitle: "THE WAR ENDS. THE QUESTION BEGINS.",
-    endSub: "What Marcus uploaded — and what answered — is the heart of Dystopia: Life After The Machines. Read the full story, then continue with Book Two: Layers of Truth.",
+    endSub: "What Marcus uploaded, and what answered, is the heart of Dystopia: Life After The Machines. Read the full story, then continue with Book Two: Layers of Truth.",
   },
 };
 
@@ -633,7 +633,7 @@ function refreshGfxButton(){
 }
 
 /* ============================================================
-   Audio — all synthesized, zero assets
+   Audio, all synthesized, zero assets
    ============================================================ */
 const AudioSys = (() => {
   let ctx = null, master = null, humOsc = null, humGain = null, alarmTimer = null, heartTimer = null;
@@ -749,7 +749,7 @@ const AudioSys = (() => {
 })();
 
 /* ============================================================
-   Generative music — a dark ambient score composed live by the
+   Generative music, a dark ambient score composed live by the
    game, zero audio assets. Three intensities crossfade with the
    situation; each chapter plays in its own key.
    ============================================================ */
@@ -1041,7 +1041,7 @@ const modelsReady = (async () => {
         res();
       }, undefined, () => res());
     })));
-  } catch (e) { /* loader unavailable — procedural models remain */ }
+  } catch (e) { /* loader unavailable, procedural models remain */ }
 })();
 
 const GFX = { dust:null, shafts:[], glows:[] };
@@ -1137,7 +1137,7 @@ window.addEventListener('resize', () => {
 });
 
 /* ============================================================
-   Opening cinematic (chapter 1) — the book's first scene,
+   Opening cinematic (chapter 1), the book's first scene,
    "Awakening in Rust", rendered in-engine. Fully procedural.
    ============================================================ */
 const Cinematic = (() => {
@@ -1824,7 +1824,7 @@ ROOMS.forEach(r=>{
   });
 });
 
-// scattered supply crates (solid — they block movement, shots and sight lines)
+// scattered supply crates (solid, they block movement, shots and sight lines)
 const crateMat = surfMat(CRATE_SET, 1, 1, {}, { floorAO:.55, ceilAO:0, aoH:.7, noise:false });
 CH.crates.forEach(([x,z,s,rot])=>{
   const m = new THREE.Mesh(unitBox, crateMat);
@@ -1959,7 +1959,7 @@ wallMeshes[0] && (() => { const fl = wallMeshes.find(m => m.geometry.parameters 
   const ce = wallMeshes.find(m => m.geometry.parameters && m.geometry.parameters.depth === 148 && m.position.y > 0);
   if (fl) fl.castShadow = false; if (ce) ce.castShadow = false; })();
 
-// chapter set-piece (hive core / ledger console) — built after shared geometry
+// chapter set-piece (hive core / ledger console), built after shared geometry
 const CORE_POS = new THREE.Vector3(...CH.objectivePos);
 let PROPS = null;
 
@@ -2757,7 +2757,7 @@ function collide(pos, r){
 }
 
 /* ============================================================
-   Line of sight (2D grid vs AABBs — cheap, no raycaster allocs)
+   Line of sight (2D grid vs AABBs, cheap, no raycaster allocs)
    ============================================================ */
 function losBlocked(ax, az, bx, bz){
   for (const c of colliders){
@@ -3398,7 +3398,7 @@ function updateFX(dt){
   // muzzle flash decay
   if (muzzleLight.intensity > 0)
     muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*320);
-  // sentry thruster flicker (shared material — one write covers all pods)
+  // sentry thruster flicker (shared material, one write covers all pods)
   thrusterGlowMat.opacity = .55 + Math.sin(G.time*22)*.25;
   // environment animation: shaft flicker, conduit flow, machine-light sync
   dustU.value = G.time;
